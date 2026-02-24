@@ -8,6 +8,8 @@
     <!-- [NOVO] Adiciona o ficheiro de utilitários para ter acesso às funções de formatação. Usando caminho absoluto para maior robustez. -->
     <script src="/js/utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- [NOVO] Adiciona Socket.io para atualizações em tempo real -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <!-- [UNIFICADO] Adiciona a nova folha de estilos partilhada para as páginas de monitoramento. -->
     <link rel="stylesheet" href="/css/monitoring_styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -71,6 +73,14 @@
         let updateInterval;
         let currentRouters = []; // [NOVO] Armazena os dados dos roteadores para acesso rápido
         let charts = {}; // [NOVO] Armazena as instâncias dos gráficos para atualização
+        
+        // [MELHORIA] Determina a URL do backend dinamicamente (Dev vs Prod)
+        // Em Dev (porta 8184), aponta para a 3000. Em Prod, usa a origem atual (relativo).
+        const getBackendUrl = () => {
+            return window.location.port === '8184' ? `http://${window.location.hostname}:3000` : '';
+        };
+        const BASE_URL = getBackendUrl();
+        const socket = io(BASE_URL || undefined); // Conecta automaticamente na origem correta
 
         // [MODIFICADO] Carregar status dos roteadores com URL absoluta e autenticação
         async function loadRouterStatus() {
@@ -79,8 +89,7 @@
              if(refreshIcon) refreshIcon.classList.add('fa-spin');
 
              try {
-                 // A URL da API deve ser absoluta para o servidor backend na porta 3000.
-                 const API_URL = `http://${window.location.hostname}:3000`;
+                 // [CORRIGIDO] Usa a URL base dinâmica
                  const token = localStorage.getItem('adminToken');
  
                  if (!token) {
@@ -88,7 +97,7 @@
                      return;
                  }
  
-                 const response = await fetch(`${API_URL}/api/monitoring/all-routers-status`, {
+                 const response = await fetch(`${BASE_URL}/api/monitoring/all-routers-status`, {
                      headers: { 'Authorization': `Bearer ${token}` }
                  });
  
@@ -288,9 +297,8 @@
             // console.log(`[FRONTEND] Renderizando gráfico para ${router.name} (${router.id}) usando interface: ${selectedInterface}`);
 
             try {
-                const API_URL = `http://${window.location.hostname}:3000`;
                 const token = localStorage.getItem('adminToken');
-                const response = await fetch(`${API_URL}/api/monitoring/router/${router.id}/interface-traffic?interface=${encodeURIComponent(selectedInterface)}&range=15m`, {
+                const response = await fetch(`${BASE_URL}/api/monitoring/router/${router.id}/interface-traffic?interface=${encodeURIComponent(selectedInterface)}&range=15m`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -382,7 +390,51 @@
         loadRouterStatus();
 
         // Atualizar a cada 5 segundos
-        updateInterval = setInterval(loadRouterStatus, 60000); // Aumentado para 60s para dar tempo de obter o ping
+        // [MODIFICADO] Reduzido para 30s para manter a lista sincronizada, mas confiando no Socket.io para o tempo real
+        updateInterval = setInterval(loadRouterStatus, 30000); 
+
+        // [NOVO] Escuta atualizações em tempo real do servidor via Socket.io
+        socket.on('routerStatusUpdate', (data) => {
+            // data = { id, status, latency }
+            const card = document.getElementById(`router-card-${data.id}`);
+            if (card) {
+                // Atualiza classes de status
+                card.classList.remove('online', 'offline', 'warning', 'critical');
+                
+                let newClass = 'offline';
+                let newText = 'Offline';
+
+                if (data.status === 'online') {
+                    if (data.latency > 200) {
+                        newClass = 'critical';
+                        newText = 'Online (Lento)';
+                    } else if (data.latency >= 125) {
+                        newClass = 'warning';
+                        newText = 'Online';
+                    } else {
+                        newClass = 'online';
+                        newText = 'Online';
+                    }
+                }
+
+                card.classList.add(newClass);
+
+                // Atualiza Badge
+                const badge = document.getElementById(`status-badge-${data.id}`);
+                if (badge) {
+                    badge.className = `status-badge ${newClass}`;
+                    badge.textContent = newText;
+                }
+
+                // Atualiza Latência
+                const latencySpan = document.getElementById(`latency-${data.id}`);
+                if (latencySpan) {
+                    latencySpan.textContent = data.latency !== null ? `${data.latency} ms` : 'N/A';
+                }
+                
+                // Nota: Se o status mudar de Offline para Online (ou vice-versa), a ordenação só será corrigida no próximo refresh completo (30s) para evitar que os cards "saltem" na tela enquanto o usuário olha.
+            }
+        });
 
         // Limpar interval ao sair da página
         window.addEventListener('beforeunload', () => {

@@ -46,7 +46,7 @@ window.showPagePreloader = (message = 'A carregar...') => {
         // [NOVO] Define um timeout de segurança baseado nas configurações
         if (preloaderTimeout) clearTimeout(preloaderTimeout);
         
-        const timeoutMs = window.systemSettings?.loader_timeout || 10000; // Default 10s
+        const timeoutMs = window.systemSettings?.loader_timeout || 20000; // [AUMENTADO] Default para 20s para acomodar redes lentas.
         preloaderTimeout = setTimeout(() => {
             console.warn(`[Preloader] Timeout de segurança atingido (${timeoutMs}ms). Forçando remoção.`);
             window.hidePagePreloader();
@@ -765,6 +765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'admin_campaigns': 'campaigns.read',
             'admin_templates': 'templates.read',
             'admin_banners': 'banners.read',
+            'admin_raffles': 'raffles.read',
             'admin_routers': 'routers.read',
             'admin_users': 'users.read',
             'admin_reports': 'analytics.read', // [NOVO] Usa a permissão de analytics ou cria uma nova 'reports.read'

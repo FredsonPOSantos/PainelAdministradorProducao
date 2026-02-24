@@ -30,7 +30,7 @@ const sendPasswordResetEmail = async (to, token) => {
     const frontendBaseUrl = process.env.FRONTEND_BASE_URL || `http://127.0.0.1:8184`;
 
     // [DEBUG] Adiciona este log para vermos o valor real da variável no servidor
-    console.log(`[DEBUG - emailService] Valor de FRONTEND_BASE_URL: ${process.env.FRONTEND_BASE_URL}`);
+    // console.log(`[DEBUG - emailService] Valor de FRONTEND_BASE_URL: ${process.env.FRONTEND_BASE_URL}`);
 
     const resetUrl = `${frontendBaseUrl}/admin_reset_password.html?token=${token}`;
 

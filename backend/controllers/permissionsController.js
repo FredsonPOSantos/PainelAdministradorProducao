@@ -19,13 +19,13 @@ const { logAction } = require('../services/auditLogService');
  * }
  */
 const getPermissionsMatrix = async (req, res) => {
-    console.log("getPermissionsMatrix (V13.5.3 - Batch Mode): Buscando dados...");
+    // console.log("getPermissionsMatrix (V13.5.3 - Batch Mode): Buscando dados...");
     try {
         // 1. Buscar todas as roles (exceto 'master' da edição, mas incluímos para DPO ver)
         // [ATUALIZADO] Retorna o objeto completo para saber se é sistema ou não
         const rolesResult = await pool.query('SELECT slug, name, description, is_system FROM roles ORDER BY name');
         const roles = rolesResult.rows; 
-        console.log("Roles encontradas:", roles);
+        // console.log("Roles encontradas:", roles);
 
         // 2. Buscar todas as permissões disponíveis (agrupadas por feature_name para facilitar)
         const permissionsResult = await pool.query(`
@@ -34,7 +34,7 @@ const getPermissionsMatrix = async (req, res) => {
             ORDER BY feature_name, action_name
         `);
         const allPermissions = permissionsResult.rows;
-        console.log(`Total de ${allPermissions.length} permissões encontradas.`);
+        // console.log(`Total de ${allPermissions.length} permissões encontradas.`);
 
         // 3. Buscar todas as associações role <-> permission
         const rolePermissionsResult = await pool.query('SELECT role_name, permission_key FROM role_permissions');
@@ -57,7 +57,7 @@ const getPermissionsMatrix = async (req, res) => {
             }
         });
 
-        console.log("Matriz de atribuições montada.");
+        // console.log("Matriz de atribuições montada.");
         
         res.json({
             roles: roles,
@@ -85,7 +85,7 @@ const updatePermissionsBatch = async (req, res) => {
         return res.status(400).json({ message: 'Nenhuma alteração fornecida.' });
     }
 
-    console.log(`updatePermissionsBatch (V13.5.3): Recebendo ${changes.length} alterações...`);
+    // console.log(`updatePermissionsBatch (V13.5.3): Recebendo ${changes.length} alterações...`);
 
     // Usa um 'client' da pool para garantir a transação
     const client = await pool.connect();
@@ -133,7 +133,7 @@ const updatePermissionsBatch = async (req, res) => {
             details: { changes } // Guarda todas as alterações no log
         });
 
-        console.log("updatePermissionsBatch (V13.5.3): Transação concluída com sucesso.");
+        // console.log("updatePermissionsBatch (V13.5.3): Transação concluída com sucesso.");
         res.status(200).json({ message: 'Permissões atualizadas com sucesso!' });
 
     } catch (error) {
@@ -159,7 +159,7 @@ const getPermissionsForRole = async (roleName) => {
 
     // [CORRIGIDO] Garante que o 'master' sempre tenha todas as permissões
     if (roleName === 'master') {
-        console.log(`[getPermissionsForRole] Função 'master' detectada. Concedendo acesso total.`);
+        // console.log(`[getPermissionsForRole] Função 'master' detectada. Concedendo acesso total.`);
         const allPermissionsResult = await pool.query('SELECT permission_key FROM permissions');
         const allPermissions = {};
         allPermissionsResult.rows.forEach(row => {

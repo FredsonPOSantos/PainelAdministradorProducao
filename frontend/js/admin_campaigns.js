@@ -189,7 +189,7 @@ if (window.initCampaignsPage) {
          * @param {number} campaignId - O ID da campanha a ser pré-visualizada.
          */
         const previewCampaign = (campaignId) => {
-            // [CORRIGIDO] Constrói a URL para o SERVIDOR do hotspot (porta 3001),
+            // [CORRIGIDO] Constrói a URL para o SERVIDOR do hotspot (porta 8081),
             // que irá renderizar o template EJS com os dados da campanha de pré-visualização.
             
             // Ajuste para ambiente de produção: Se estiver no Admin (.47), o Portal está no .46
@@ -198,7 +198,7 @@ if (window.initCampaignsPage) {
                 portalHost = '10.0.0.46';
             }
 
-            const previewUrl = `http://${portalHost}:3001/?previewCampaignId=${campaignId}`;
+            const previewUrl = `http://${portalHost}:8081/?previewCampaignId=${campaignId}`;
             window.open(previewUrl, '_blank');
         };
 

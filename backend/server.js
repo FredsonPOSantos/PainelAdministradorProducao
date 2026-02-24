@@ -1,16 +1,23 @@
 // Ficheiro: backend/server.js
+// [NOVO] Supressão de aviso de depreciação do Node.js (OutgoingMessage.prototype._headers)
+// Isso evita poluição dos logs com avisos de dependências antigas (como Express) em Node.js novos.
+const originalEmit = process.emit;
+process.emit = function (name, data, ...args) {
+    if (name === 'warning' && typeof data === 'object' && data.name === 'DeprecationWarning' && data.message.includes('OutgoingMessage.prototype._headers')) {
+        return false;
+    }
+    return originalEmit.apply(process, [name, data, ...args]);
+};
+
 const path = require('path');
 const fs = require('fs');
 
-// [CORREÇÃO DEFINITIVA] Carrega o ficheiro .env APENAS em ambiente de desenvolvimento.
-// Em produção, as variáveis de ambiente devem vir EXCLUSIVAMENTE do ecosystem.config.js
-// para evitar conflitos como o que está a acontecer.
-if (process.env.NODE_ENV !== 'production') {
-    console.log('[SERVER] Ambiente de desenvolvimento detectado. A carregar .env...');
-    const envPath = path.resolve(__dirname, '../.env');
-    if (fs.existsSync(envPath)) {
-        require('dotenv').config({ path: envPath });
-    }
+// [SEGURANÇA] Carrega o ficheiro .env se existir, independentemente do ambiente.
+// Isso permite migrar credenciais sensíveis do ecosystem.config.js para um arquivo .env não versionado.
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+    console.log('[SERVER] Carregando variáveis de ambiente de:', envPath);
+    require('dotenv').config({ path: envPath });
 }
 
 const express = require('express'); // [CORREÇÃO] A importação do express já existe.
@@ -23,6 +30,16 @@ const methodOverride = require('method-override'); // [NOVO] Importa o method-ov
 // [NOVO] Guardião Global para evitar crashes por erros de protocolo do MikroTik
 process.on('uncaughtException', (err) => {
     const msg = err.message || String(err);
+    // [NOVO] Importa o cliente MikroTik para a verificação de status de interface
+    let RouterOSClient;
+    try {
+        const routeros = require('node-routeros');
+        RouterOSClient = routeros.RouterOSClient || routeros.RouterOSAPI || routeros.default || routeros;
+    } catch (e) {
+        console.error("AVISO: A biblioteca 'node-routeros' não foi encontrada. A verificação de status de interface estará desativada.");
+        RouterOSClient = null;
+    }
+
     if (msg.includes('Tried to process unknown reply') || msg.includes('UNKNOWNREPLY') || msg.includes('!empty') || msg.includes('!trap')) {
         console.warn(`[SERVER] ⚠️ Erro de protocolo MikroTik ignorado para manter o servidor online: ${msg}`);
         return;
@@ -47,6 +64,7 @@ const ping = require('ping'); // [NOVO] Importa a biblioteca de ping para a veri
 const influxService = require('./services/influxService'); // [NOVO] Importa o serviço Influx
 const { logAction } = require('./services/auditLogService');
 const { logError } = require('./services/errorLogService'); // [NOVO] Importa o serviço de log de erros
+const { runDailyConsolidation } = require('./services/historyService'); // [NOVO] Serviço de Histórico
 const verifyToken = require('./middlewares/authMiddleware'); // [NOVO] Importa middleware de auth
 const checkPermission = require('./middlewares/roleMiddleware'); // [NOVO] Importa middleware de permissão
 const authRoutes = require('./routes/auth');
@@ -246,7 +264,7 @@ const startPeriodicRouterCheck = () => {
             );
 
             // [MODIFICADO] Seleciona apenas roteadores que NÃO estão em manutenção
-            const routersResult = await client.query('SELECT id, ip_address FROM routers WHERE ip_address IS NOT NULL AND is_maintenance = false');
+            const routersResult = await client.query('SELECT id, ip_address, status, monitoring_interface, username, password, api_port FROM routers WHERE ip_address IS NOT NULL AND is_maintenance = false');
             const routersToCheck = routersResult.rows;
             
             if (routersToCheck.length === 0) {
@@ -254,6 +272,7 @@ const startPeriodicRouterCheck = () => {
             } else {
                 for (const router of routersToCheck) {
                     // [MODIFICADO] Realiza 3 pings para calcular a média
+                    let newStatus;
                     let totalLatency = 0;
                     let successCount = 0;
                     
@@ -267,13 +286,45 @@ const startPeriodicRouterCheck = () => {
                         } catch (e) {}
                     }
 
-                    const newStatus = successCount > 0 ? 'online' : 'offline';
+                    newStatus = successCount > 0 ? 'online' : 'offline';
                     const latency = successCount > 0 ? Math.round(totalLatency / successCount) : null;
                     
-                    await client.query(
-                        'UPDATE routers SET status = $1, latency = $2, last_seen = NOW() WHERE id = $3',
-                        [newStatus, latency, router.id]
-                    );
+                    // [NOVO] Se o roteador está online, mas tem uma interface de monitoramento, verifica o status dela
+                    if (newStatus === 'online' && router.monitoring_interface && router.username && router.password && RouterOSClient) {
+                        try {
+                            const apiClient = new RouterOSClient({ host: router.ip_address, user: router.username, password: router.password, port: router.api_port || 8728, timeout: 5 });
+                            await apiClient.connect();
+                            const interfaceStatus = await apiClient.write('/interface/print', [`?name=${router.monitoring_interface}`]);
+                            apiClient.close();
+                            if (interfaceStatus.length > 0 && interfaceStatus[0].running === 'false') {
+                                newStatus = 'offline'; // Força offline se a interface monitorada estiver inativa
+                                console.log(`[ROUTER-CHECK] Roteador ${router.ip_address} marcado como offline pois a interface '${router.monitoring_interface}' está inativa.`);
+                            }
+                        } catch (apiError) {
+                            // [SEGURANÇA] Sanitiza a mensagem de erro para remover possíveis senhas
+                            const safeMsg = apiError.message ? apiError.message.replace(/password=['"][^']*['"]/gi, "password='******'").replace(/password=[^ ]+/gi, "password=******") : 'Erro desconhecido';
+                            console.warn(`[ROUTER-CHECK] Falha ao verificar interface '${router.monitoring_interface}' em ${router.ip_address}: ${safeMsg}`);
+                        }
+                    }
+
+                    // [CORREÇÃO DEFINITIVA] Lógica de atualização de status para calcular inatividade corretamente.
+                    // A coluna 'last_seen' só deve ser atualizada quando o roteador está ONLINE.
+                    if (newStatus === 'online') {
+                        // Roteador está online. Atualiza status, latência e o 'last_seen'.
+                        if (newStatus !== router.status) {
+                            // Se o status mudou de offline para online, atualiza também o 'status_changed_at'.
+                            await client.query('UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), status_changed_at = NOW() WHERE id = $3', [newStatus, latency, router.id]);
+                        } else {
+                            // Se já estava online, apenas atualiza a latência e o 'last_seen'.
+                            await client.query('UPDATE routers SET latency = $1, last_seen = NOW() WHERE id = $2', [latency, router.id]);
+                        }
+                    } else {
+                        // Roteador está offline. Atualiza o status APENAS se ele mudou, e NUNCA atualiza 'last_seen'.
+                        if (newStatus !== router.status) {
+                            await client.query('UPDATE routers SET status = $1, latency = $2, status_changed_at = NOW() WHERE id = $3', [newStatus, latency, router.id]);
+                        }
+                    }
+
                     if (latency !== null) {
                         // console.log(`[ROUTER-CHECK] Atualizado ${router.ip_address}: Status=${newStatus}, Latency=${latency}ms`);
                     }
@@ -302,6 +353,27 @@ const startPeriodicRouterCheck = () => {
     setInterval(checkRouters, 60000); // Executa a cada 60 segundos
 };
 
+// --- [NOVO] Agendador de Tarefas Noturnas (Consolidação de Histórico) ---
+const startNightlyTasks = () => {
+    // Verifica a cada hora se é hora de rodar a consolidação (ex: entre 03:00 e 04:00)
+    setInterval(() => {
+        const now = new Date();
+        // Roda apenas se for 03:00 da manhã
+        if (now.getHours() === 3 && now.getMinutes() < 5) { // Janela de 5 minutos
+            console.log('🌙 [SISTEMA] Iniciando tarefas noturnas...');
+            runDailyConsolidation();
+        }
+    }, 300000); // Verifica a cada 5 minutos
+
+    // Executa uma vez na inicialização (apenas em DEV para testar, comente em produção se desejar)
+    if (process.env.NODE_ENV !== 'production') {
+        setTimeout(() => {
+            console.log('🧪 [DEV] Executando teste de consolidação inicial...');
+            runDailyConsolidation();
+        }, 10000); // Roda 10s após iniciar
+    }
+};
+
 // --- Inicia o Servidor ---
 // [NOVO] Configuração do Socket.io
 io.on('connection', (socket) => {
@@ -319,6 +391,9 @@ server.listen(PORT, async () => { // [MODIFICADO] Usa server.listen em vez de ap
   
   // Inicia a verificação periódica de roteadores (só funcionará se o PG estiver online)
   startPeriodicRouterCheck();
+
+  // [NOVO] Inicia o agendador de tarefas noturnas
+  startNightlyTasks();
 
   // [NOVO] Regista o evento de início do servidor no log de auditoria
   await logAction({

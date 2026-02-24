@@ -13,6 +13,12 @@ if (window.initRafflesPage) {
         const detailsContent = document.getElementById('raffleDetailsContent');
         const detailsCloseBtn = detailsModal.querySelector('.modal-close-btn');
 
+        // [NOVO] Permissões do utilizador
+        const canCreate = window.currentUserProfile?.permissions['raffles.create'];
+        const canRead = window.currentUserProfile?.permissions['raffles.read'];
+        const canDraw = window.currentUserProfile?.permissions['raffles.draw'];
+        const canDelete = window.currentUserProfile?.permissions['raffles.delete'];
+
         // --- [NOVO] Selectors para o modal de progresso ---
         const progressModal = document.getElementById('raffleProgressModal');
         const progressModalTitle = document.getElementById('progressModalTitle');
@@ -125,12 +131,13 @@ if (window.initRafflesPage) {
                     const row = document.createElement('tr');
                     const winnerName = raffle.winner_name || (raffle.draw_date ? 'Sorteado, sem nome' : 'Pendente');
                     const dateDisplay = raffle.created_at ? new Date(raffle.created_at).toLocaleString('pt-BR') : 'Data Indisponível';
-                    // [MODIFICADO] Botão de sortear agora é um ícone para manter consistência visual
-                    const drawBtn = !raffle.draw_date ? `<button class="btn-primary btn-sm btn-draw" data-id="${raffle.id}" title="Realizar Sorteio"><i class="fas fa-trophy"></i></button>` : '';
                     
-                    // [NOVO] Botão de excluir visível APENAS para DPO
-                    const deleteBtn = (window.currentUserProfile && window.currentUserProfile.role === 'DPO') 
-                        ? `<button class="btn-delete btn-sm" data-id="${raffle.id}" title="Excluir (Restrito DPO)"><i class="fas fa-trash-alt"></i></button>`
+                    // [MODIFICADO] Botão de sortear agora verifica a permissão 'raffles.draw'
+                    const drawBtn = (canDraw && !raffle.draw_date) ? `<button class="btn-primary btn-sm btn-draw" data-id="${raffle.id}" title="Realizar Sorteio"><i class="fas fa-trophy"></i></button>` : '';
+                    
+                    // [MODIFICADO] Botão de excluir agora verifica a permissão 'raffles.delete'
+                    const deleteBtn = canDelete
+                        ? `<button class="btn-delete btn-sm" data-id="${raffle.id}" title="Excluir Sorteio"><i class="fas fa-trash-alt"></i></button>`
                         : '';
 
                     row.innerHTML = `
@@ -510,6 +517,11 @@ if (window.initRafflesPage) {
         });
 
         // --- INICIALIZAÇÃO ---
+        // [NOVO] Esconde o formulário de criação se o utilizador não tiver permissão
+        if (!canCreate) {
+            if (createRaffleForm) createRaffleForm.style.display = 'none';
+        }
+
         loadFilters();
         loadRaffles();
     };

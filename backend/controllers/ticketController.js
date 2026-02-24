@@ -115,7 +115,7 @@ const createTicket = async (req, res) => {
 
                     // [CRÍTICO] Emite o evento para a sala do ticket, notificando a UI em tempo real.
                     ioInstance.to(`ticket-${createdTicketId}`).emit('newMessage', newMessage);
-                    console.log(`[AI-SOCKET-INITIAL] Primeira resposta da IA emitida para a sala ticket-${createdTicketId}`);
+                    // console.log(`[AI-SOCKET-INITIAL] Primeira resposta da IA emitida para a sala ticket-${createdTicketId}`);
                 }
             } catch (aiError) {
                 console.error(`[AI-RESPONSE-ERROR] Falha ao adicionar resposta da IA para o ticket ${ticketId}:`, aiError);
@@ -483,7 +483,7 @@ const addMessageToTicket = async (req, res) => {
                 // [CORREÇÃO] A IA deve responder a um ticket se NENHUM HUMANO estiver atribuído a ele,
                 // agindo como o primeiro nível de suporte, independentemente de qual admin adiciona a mensagem do cliente.
                 if (currentTicket && !currentTicket.assigned_to_user_id && currentTicket.status !== 'closed') {
-                    console.log(`[AI-TRIGGER] A IA foi acionada para o ticket ${id} pois não há um responsável atribuído.`);
+                    // console.log(`[AI-TRIGGER] A IA foi acionada para o ticket ${id} pois não há um responsável atribuído.`);
 
                     // Busca histórico completo para contexto
                     const historyResult = await pool.query(
@@ -507,10 +507,10 @@ const addMessageToTicket = async (req, res) => {
 
                         // [CRÍTICO] Emite o evento para a sala específica do ticket
                         ioInstance.to(`ticket-${ticketId}`).emit('newMessage', newMessage);
-                        console.log(`[AI-SOCKET] Nova mensagem da IA emitida para a sala ticket-${ticketId}`);
+                        // console.log(`[AI-SOCKET] Nova mensagem da IA emitida para a sala ticket-${ticketId}`);
                     }
                 } else {
-                    console.log(`[AI-TRIGGER] A IA não foi acionada para o ticket ${id}. Motivo: Ticket já atribuído ou fechado.`);
+                    // console.log(`[AI-TRIGGER] A IA não foi acionada para o ticket ${id}. Motivo: Ticket já atribuído ou fechado.`);
                 }
             } catch (aiError) {
                 console.error(`[AI-CHAT-ERROR] Falha na resposta da IA para ticket ${id}:`, aiError);

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const verifyToken = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 const adminController = require('../controllers/adminController');
 
 // --- ROTA DE PERFIL ---

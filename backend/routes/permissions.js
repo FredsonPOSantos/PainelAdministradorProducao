@@ -6,8 +6,8 @@ const router = express.Router();
 
 // --- Middlewares ---
 const verifyToken = require('../middlewares/authMiddleware');
-// [ALTERADO] Trocamos checkRole por checkPermission
-const checkPermission = require('../middlewares/roleMiddleware'); 
+// [CORRIGIDO] Usa o middleware correto para verificação de permissões granulares.
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 // --- Controller ---
 const permissionsController = require('../controllers/permissionsController');
@@ -17,7 +17,7 @@ const permissionsController = require('../controllers/permissionsController');
 // Acessível por quem tem a permissão 'permissions.read'
 router.get(
     '/matrix',
-    verifyToken, 
+    verifyToken,
     checkPermission('permissions.read'), // Apenas quem pode ler permissões
     permissionsController.getPermissionsMatrix 
 );
@@ -27,10 +27,9 @@ router.get(
 // Acessível apenas por quem tem a permissão 'permissions.update'
 router.post(
     '/update-batch',
-    verifyToken,
+    verifyToken, 
     checkPermission('permissions.update'), // Apenas quem pode editar permissões
     permissionsController.updatePermissionsBatch
 );
 
 module.exports = router;
-

@@ -258,18 +258,40 @@ const getRaffleDetails = async (req, res) => {
 
 const deleteRaffle = async (req, res) => {
     const { id } = req.params;
-
-    // [NOVO] Restrição de Segurança: Apenas o DPO pode excluir sorteios para fins de auditoria.
-    if (req.user.role !== 'DPO') {
-        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas o DPO pode excluir registos de sorteios.' });
-    }
-
+    // A verificação de permissão ('raffles.delete') agora é feita pelo middleware na rota.
+    const client = await pool.connect();
     try {
-        await pool.query('DELETE FROM raffle_participants WHERE raffle_id = $1', [id]);
-        await pool.query('DELETE FROM raffles WHERE id = $1', [id]);
-        res.json({ success: true, message: 'Sorteio e participantes removidos.' });
+        await client.query('BEGIN');
+
+        // Apaga primeiro os participantes (chave estrangeira)
+        await client.query('DELETE FROM raffle_participants WHERE raffle_id = $1', [id]);
+        
+        // Apaga o sorteio principal
+        const result = await client.query('DELETE FROM raffles WHERE id = $1 RETURNING title', [id]);
+
+        if (result.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Sorteio não encontrado.' });
+        }
+
+        await client.query('COMMIT');
+
+        await logAction({
+            req,
+            action: 'RAFFLE_DELETE',
+            status: 'SUCCESS',
+            description: `Utilizador "${req.user.email}" eliminou o sorteio "${result.rows[0].title}" (ID: ${id}).`,
+            target_id: id,
+            target_type: 'raffle'
+        });
+
+        res.json({ success: true, message: 'Sorteio e participantes associados foram removidos com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Erro ao deletar sorteio.' });
+        await client.query('ROLLBACK');
+        console.error(`Erro ao eliminar sorteio ID ${id}:`, error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor ao eliminar o sorteio.' });
+    } finally {
+        client.release();
     }
 };
 

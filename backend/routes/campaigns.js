@@ -4,43 +4,43 @@
 const express = require('express');
 const router = express.Router();
 const campaignController = require('../controllers/campaignController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const verifyToken = require('../middlewares/authMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 // --- Rotas para Campanhas ---
 
 // Criar uma nova campanha
 router.post(
   '/',
-  [authMiddleware, checkPermission('campaigns.create')],
+  [verifyToken, checkPermission('campaigns.create')],
   campaignController.createCampaign
 );
 
 // Listar todas as campanhas
 router.get(
   '/',
-  [authMiddleware, checkPermission('campaigns.read')],
+  [verifyToken, checkPermission('campaigns.read')],
   campaignController.getAllCampaigns
 );
 
 // Atualizar uma campanha
 router.put(
   '/:id',
-  [authMiddleware, checkPermission('campaigns.update')],
+  [verifyToken, checkPermission('campaigns.update')],
   campaignController.updateCampaign
 );
 
 // Eliminar uma campanha
 router.delete(
   '/:id',
-  [authMiddleware, checkPermission('campaigns.delete')],
+  [verifyToken, checkPermission('campaigns.delete')],
   campaignController.deleteCampaign
 );
 
 // Rota para obter alvos (roteadores e grupos) disponíveis para campanhas
 router.get(
   '/available-targets',
-  [authMiddleware, checkPermission('campaigns.read')],
+  [verifyToken, checkPermission('campaigns.read')],
   campaignController.getAvailableTargets
 );
 

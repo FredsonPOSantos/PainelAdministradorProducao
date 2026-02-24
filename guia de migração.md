@@ -129,7 +129,7 @@ npm install
 Configure o .env do Portal: Este passo é crucial para a integração das campanhas.
 env
  Show full code block 
-PORT=3001 # Ou a porta que o portal usa
+PORT=8081 # Porta configurada para produção (compatível com MikroTik)
 
 # Conexão com o Banco (.45) para Login/Cadastro
 DB_HOST=10.0.0.45
@@ -152,8 +152,8 @@ sudo ufw allow from 10.0.0.47 comment "Admin System"
 sudo ufw allow from 172.16.12.0/24 comment "Rede MikroTik"
 
 # Libera acesso para os usuários vindos dos MikroTiks (Rede dos clientes)
-# Supondo que a porta do portal seja 3001
-sudo ufw allow 3001/tcp
+# Porta do Portal (8081)
+sudo ufw allow 8081/tcp
 sudo ufw enable
 Inicialização Automática:
 bash
@@ -206,5 +206,5 @@ Ao autorizar, o Portal manda comando para o MikroTik liberar a internet.
 Resumo de IPs e Portas
 Servidor	IP	Porta Serviço	Quem Acessa?
 Admin	10.0.0.47	3000 (Node)	Portal (.46), Admins, MikroTiks (Monitoramento)
-Portal	10.0.0.46	3001 (Node)	Usuários (Wi-Fi), MikroTiks (Redirect)
+Portal	10.0.0.46	8081 (Node)	Usuários (Wi-Fi), MikroTiks (Redirect)
 Serviços	10.0.0.45	5432 (PG), 8086 (Influx)	Admin (.47), Portal (.46), FreeRADIUS (Local)

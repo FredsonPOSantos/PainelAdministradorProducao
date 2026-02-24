@@ -2,16 +2,15 @@
 const dotenv = require('dotenv');
 const path = require('path');
 
-// [CORREÇÃO] Carrega o .env da raiz do projeto e apenas em ambiente de desenvolvimento.
-// Em produção, as variáveis devem vir do ecosystem.config.js.
-if (process.env.NODE_ENV !== 'production') {
-    const envPath = path.resolve(__dirname, '../.env');
-    if (require('fs').existsSync(envPath)) {
-        dotenv.config({ path: envPath });
-    }
+// [SEGURANÇA] Carrega o .env se existir, permitindo o uso de credenciais seguras em produção.
+const envPath = path.resolve(__dirname, '../.env');
+if (require('fs').existsSync(envPath)) {
+    console.log('[AGENT] Carregando variáveis de ambiente de:', envPath);
+    dotenv.config({ path: envPath });
 }
 
 const { Pool } = require('pg');
+const { pool: pgPool } = require('./connection'); // [NOVO] Importa a pool de conexão principal
 const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 
 // --- GUARDIÃO INTERNO: Previne que o agente pare em caso de erros ---
@@ -118,10 +117,9 @@ const parseMikroTikTime = (timeStr) => {
 // Campos a serem completamente ignorados durante a coleta.
 const ignoredFields = {
     'interface_stats': new Set([
-        'mtu', 'actual-mtu', 'l2mtu', 'max-l2mtu', '.id', 'fp-rx-byte', 'fp-tx-byte', 
+        'mtu', 'actual-mtu', 'l2mtu', 'max-l2mtu', '.id', 'fp-rx-byte', 'fp-tx-byte',
         'fp-rx-packet', 'fp-tx-packet', 'fp-rx-packets-per-second', 'fp-tx-packets-per-second',
-        'fp-rx-bits-per-second', 'fp-tx-bits-per-second', 'comment', 'default_name', 'disabled',
-        'mac_address', 'running', 'slave', 'type'
+        'fp-rx-bits-per-second', 'fp-tx-bits-per-second', 'comment', 'default_name', 'disabled', 'mac_address', 'running', 'slave', 'type'
     ]),
     'system_resource': new Set([
         'write-sect-since-reboot', 'write-sect-total', 'architecture-name', 
@@ -146,10 +144,9 @@ const ignoredFields = {
 // Lista de campos que devem SEMPRE ser números (FLOAT)
 const alwaysNumericFields = new Set([
     // Campos de interface
-    'rx_byte','tx_byte','rx_packet','tx_packet','rx_drop','tx_drop','tx_queue_drop','rx_error','tx_error',
+    'rx_byte','tx_byte','rx_packet','tx_packet','rx_drop','tx_drop','tx_queue_drop','rx_error','tx_error', 'link_downs',
     'rx_packets_per_second','tx_packets_per_second','rx_bits_per_second','tx_bits_per_second',
     'rx_drops_per_second','tx_drops_per_second','rx_errors_per_second','tx_errors_per_second','tx_queue_drops_per_second',
-    'link_downs',
     
     // Campos de sistema
     'cpu_load','free_memory','total_memory','free_hdd_space','total_hdd_space',
@@ -194,7 +191,7 @@ const alwaysStringFields = new Set([
     
     // Tempo original (antes da conversão) - SEMPRE string
     'uptime', 'age', 'expires_after', 'last_seen', 'session-time-left', 'date',
-    'dst_active', 'gmt_offset', 'time_zone_autodetect', 'time_zone_name',
+    'dst_active', 'gmt_offset', 'time_zone_autodetect', 'time_zone_name', 'last_link_down_time',
     
     // Campos de tempo e estado - SEMPRE string para evitar conflitos
     'idle_time', 'idle_timeout', 'keepalive_timeout', 
@@ -276,7 +273,7 @@ const flattenAndWrite = (measurementName, item, extraTags = {}, host) => {
 
     try {
         // [DIAGNÓSTICO] Log do que está sendo gravado
-        // console.log(`[GRAVANDO] ${meas} | Host: ${host} | Campos:`, JSON.stringify(debugFields));
+        // console.log(`[GRAVANDO] ${meas} | Host: ${host}`);
         writeApi.writePoint(p);
     } catch (e) {
         console.error(`[INFLUXDB] Erro ao escrever ponto ${measurementName}:`, e.message);
@@ -288,7 +285,7 @@ const getHotspotActiveUsers = async (host, client, writer, runCommand) => {
     try {
         const hotspotUsers = await runCommand('/ip/hotspot/active/print');
         if (hotspotUsers && hotspotUsers.length > 0) {
-            console.log(`[API] ${hotspotUsers.length} usuários ativos no Hotspot em ${host}.`);
+            // console.log(`[API] ${hotspotUsers.length} usuários ativos no Hotspot em ${host}.`);
             hotspotUsers.forEach(user => {
                 const filteredUser = { ...user };
                 delete filteredUser['.id'];
@@ -302,27 +299,11 @@ const getHotspotActiveUsers = async (host, client, writer, runCommand) => {
     }
 };
 
-// Pool do PostgreSQL
-let pgPool = null;
-const getPgPool = () => {
-    if (!pgPool && DB_HOST && DB_USER && DB_DATABASE) {
-        pgPool = new Pool({
-            user: DB_USER,
-            host: DB_HOST,
-            database: DB_DATABASE,
-            password: DB_PASSWORD,
-            port: DB_PORT,
-            max: 10,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000
-        });
-    }
-    return pgPool;
-};
-
 // [NOVO] Inicializa tabela de logs no PostgreSQL
 const initLogTable = async () => {
-    const pool = getPgPool();
+    // [CORRIGIDO] Usa a pool de conexão importada diretamente.
+    // A declaração local de 'pgPool' foi removida para evitar o erro 'Identifier has already been declared'.
+    const pool = pgPool;
     if (!pool) return;
     try {
         await pool.query(`
@@ -350,7 +331,7 @@ const logToDB = async (level, message, host = null) => {
     else console.log(`${prefix} ℹ️ ${message}`);
 
     // 2. Log no Banco de Dados
-    const pool = getPgPool();
+    const pool = pgPool; // [CORRIGIDO] Usa a pool importada
     if (!pool) return;
 
     try {
@@ -370,7 +351,7 @@ const getRoutersFromDB = async () => {
         return process.env.ROUTER_HOSTS ? process.env.ROUTER_HOSTS.split(',').map(h => h.trim()) : [];
     }
 
-    const pool = getPgPool();
+    const pool = pgPool; // [CORRIGIDO] Usa a pool importada
     if (!pool) {
         console.warn('[AVISO] Pool PostgreSQL não disponível.');
         return [];
@@ -394,7 +375,7 @@ const collectMetrics = async (host) => {
         port: MIKROTIK_API_PORT,
         user: MIKROTIK_USER,
         password: MIKROTIK_PASSWORD,
-        timeout: 15,
+        timeout: 30, // [AUMENTADO] Timeout de conexão aumentado para 30s para redes lentas
         keepalive: false
     });
 
@@ -413,7 +394,7 @@ const collectMetrics = async (host) => {
             // [MELHORIA] Timeout forçado por comando (10s).
             // Essencial para 4G/Ônibus: Se o sinal cair DURANTE o comando, evita que o agente fique travado esperando.
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout: O roteador parou de responder (possível perda de sinal)')), 10000)
+                setTimeout(() => reject(new Error('Timeout: O roteador parou de responder (possível perda de sinal)')), 20000) // [AUMENTADO] 20s para comandos
             );
             
             return await Promise.race([client.write(cmd, args), timeoutPromise]);
@@ -425,7 +406,7 @@ const collectMetrics = async (host) => {
     try {
         // Conectar
         await client.connect();
-        console.log(`[API] Conectado a ${host}. Coletando...`);
+        // console.log(`[API] Conectado a ${host}. Coletando...`);
 
         // Verificar pacotes
         const packages = await runCommand('/system/package/print');
@@ -444,10 +425,10 @@ const collectMetrics = async (host) => {
 
         // Adicionar comando wireless apropriado
         if (isWave2Enabled) {
-            console.log(`[API] wifiwave2 detectado em ${host}.`);
+            // console.log(`[API] wifiwave2 detectado em ${host}.`);
             commands.push('/interface/wifiwave2/registration-table/print');
         } else if (isLegacyWirelessEnabled) {
-            console.log(`[API] wireless detectado em ${host}.`);
+            // console.log(`[API] wireless detectado em ${host}.`);
             commands.push('/interface/wireless/registration-table/print');
         }
 
@@ -510,6 +491,13 @@ const collectMetrics = async (host) => {
                 const name = iface.name;
                 if (!name) continue;
 
+                // [NOVO] Escreve os dados de status da interface (link-downs, etc) do comando /interface/print
+                // A função flattenAndWrite já tem a lógica de ignorar campos desnecessários.
+                flattenAndWrite('interface_stats', iface, {
+                    interface_name: name,
+                    interface_type: iface.type || 'unknown'
+                }, host);
+
                 // Pular interfaces específicas que causam problemas
                 if (name.includes('bridge') || name.includes('vlan') || name.includes('ppp')) {
                     continue;
@@ -553,7 +541,7 @@ const collectMetrics = async (host) => {
         try {
             const hotspotUsers = await runCommand('/ip/hotspot/active/print');
             if (hotspotUsers && hotspotUsers.length > 0) {
-                console.log(`[API] ${hotspotUsers.length} usuários ativos no Hotspot em ${host}.`);
+                // console.log(`[API] ${hotspotUsers.length} usuários ativos no Hotspot em ${host}.`);
                 hotspotUsers.forEach(user => {
                     const filteredUser = { 
                         user: user.user || '',
@@ -577,7 +565,8 @@ const collectMetrics = async (host) => {
 
         // Desconectar
         await client.close();
-        console.log(`[${new Date().toISOString()}] [AGENT] ✅ Coleta finalizada para ${host}.`);
+        // console.log(`[${new Date().toISOString()}] [AGENT] ✅ Coleta finalizada para ${host}.`);
+        return true; // Sucesso
     } catch (err) {
         logToDB('ERROR', `Falha na coleta: ${err.message}`, host);
         try { 
@@ -585,17 +574,18 @@ const collectMetrics = async (host) => {
         } catch (_) {
             // Ignora erros de fechamento
         }
+        return false; // Falha
     }
 };
 
 // --- 4. Ciclo Principal ---
 const runMonitoringCycle = async () => {
-    console.log(`\n[${new Date().toISOString()}] 🔄 --- [CICLO] Iniciando novo ciclo de monitoramento ---`);
+    // console.log(`\n[${new Date().toISOString()}] 🔄 Iniciando coleta de roteadores.`);
     
     let routerHosts = [];
     try {
         routerHosts = await getRoutersFromDB();
-        console.log(`[CONFIG] ${routerHosts.length} roteadores encontrados: ${routerHosts.join(', ')}`);
+        // console.log(`[CONFIG] ${routerHosts.length} roteadores encontrados: ${routerHosts.join(', ')}`);
     } catch (err) {
         console.error('❌ Erro ao obter lista de roteadores:', err.message);
         return;
@@ -606,19 +596,51 @@ const runMonitoringCycle = async () => {
         return;
     }
 
+    const successfulHosts = [];
+    const failedHosts = [];
+
     // Processar em sequência para evitar sobrecarga
     for (const host of routerHosts) {
-        await collectMetrics(host);
+        const success = await collectMetrics(host);
+        if (success) successfulHosts.push(host);
+        else failedHosts.push(host);
     }
 
+    // console.log(`[${new Date().toISOString()}] ✅ Coleta finalizada.`);
+
+    // console.log(`[${new Date().toISOString()}] 📤 Enviando para o DB influx...`);
     try {
         await writeApi.flush();
-        console.log(`[${new Date().toISOString()}] [INFLUXDB] 📤 Buffer enviado para o banco.`);
+        // console.log(`[${new Date().toISOString()}] ✅ Enviado com sucesso (Influx).`);
     } catch (e) {
         logToDB('ERROR', `Erro InfluxDB: ${e.message || e}`);
     }
 
-    console.log(`[${new Date().toISOString()}] ✅ --- [CICLO] Ciclo concluído. Aguardando próximo. ---`);
+    if (successfulHosts.length > 0) {
+        // console.log(`[${new Date().toISOString()}] 📤 Enviando para o DB postgre...`);
+        try {
+            const client = await pgPool.connect();
+            try {
+                await client.query('BEGIN');
+                for (const host of successfulHosts) {
+                    await client.query('INSERT INTO router_uptime_log (router_host, collected_at) VALUES ($1, NOW())', [host]);
+                }
+                await client.query('COMMIT');
+                // console.log(`[${new Date().toISOString()}] ✅ Enviado com sucesso (Postgres).`);
+            } catch (pgErr) {
+                await client.query('ROLLBACK');
+                console.error(`[DB] Erro ao salvar logs de uptime: ${pgErr.message}`);
+            } finally {
+                client.release();
+            }
+        } catch (e) {
+             console.error(`[DB] Erro de conexão PG: ${e.message}`);
+        }
+    }
+
+    if (failedHosts.length > 0) {
+        console.error(`[${new Date().toISOString()}] ❌ Falha ao coletar nos roteadores: ${failedHosts.join(', ')}`);
+    }
 };
 
 // Limpeza de recursos

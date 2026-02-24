@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const roleController = require('../controllers/roleController');
 const verifyToken = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 // Rotas protegidas
 router.get('/', verifyToken, checkPermission('permissions.read'), roleController.getRoles);

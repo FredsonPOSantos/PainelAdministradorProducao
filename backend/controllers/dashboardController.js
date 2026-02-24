@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const si = require('systeminformation'); // [NOVO] Biblioteca para info do sistema
 const cacheService = require('../services/cacheService'); // [NOVO]
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 const getDashboardStats = async (req, res) => {
     try {
@@ -216,11 +218,52 @@ const getAnalyticsStats = async (req, res) => {
     }
 };
 
+// [NOVO] Função auxiliar para buscar métricas de servidores remotos via SSH
+const getRemoteServerStats = async (name, ip) => {
+    try {
+        // Comando SSH otimizado para buscar Load Avg, Memória e Disco numa única conexão
+        // Requer configuração de chaves SSH (ssh-copy-id) para o utilizador root (ou outro configurado)
+        const cmd = `ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@${ip} 'cat /proc/loadavg; echo "---"; free -b; echo "---"; df -B1 /'`;
+        
+        const { stdout } = await exec(cmd);
+        const parts = stdout.split('---');
+
+        // 1. CPU (Load Average 1min)
+        const loadAvg = parseFloat(parts[0].trim().split(' ')[0]);
+        // Estima % de uso baseado em 1 core (ajuste simples para visualização)
+        // MX Linux geralmente é leve, load > 1.0 indica uso intenso
+        const cpuPercent = Math.min(Math.round(loadAvg * 100), 100); 
+
+        // 2. Memória
+        const memLines = parts[1].trim().split('\n');
+        // free -b output: Mem: total used free ...
+        const memValues = memLines[1].match(/(\d+)/g); 
+        const totalMem = parseInt(memValues[0], 10);
+        const usedMem = parseInt(memValues[1], 10);
+        const memPercent = Math.round((usedMem / totalMem) * 100);
+
+        // 3. Disco
+        const diskLines = parts[2].trim().split('\n');
+        // df output: Filesystem 1B-blocks Used Available Use% ...
+        const diskValues = diskLines[1].match(/(\d+)/g);
+        const totalDisk = parseInt(diskValues[0], 10);
+        const usedDisk = parseInt(diskValues[1], 10);
+        const diskPercent = Math.round((usedDisk / totalDisk) * 100);
+
+        return { name, ip, online: true, cpu: cpuPercent, load: loadAvg, memory: { total: totalMem, used: usedMem, percent: memPercent }, disk: { total: totalDisk, used: usedDisk, percent: diskPercent } };
+    } catch (error) {
+        // console.warn(`Falha ao conectar ao servidor ${name} (${ip}): ${error.message}`);
+        return { name, ip, online: false, error: error.message };
+    }
+};
+
 /**
  * [NOVO] Obtém dados de saúde do sistema (Conexões, Uptime, Erros).
  */
 const getSystemHealth = async (req, res) => {
     try {
+        const checkRemote = req.query.checkRemote === 'true';
+
         // 1. Status das Conexões
         const pgStatus = { ...pgConnectionStatus };
         const influxStatus = getInfluxConnectionStatus();
@@ -229,12 +272,31 @@ const getSystemHealth = async (req, res) => {
         const uptimeSeconds = process.uptime();
 
         // [NOVO] Métricas de Hardware do Servidor
-        const [cpuLoad, mem, fsSize, temp] = await Promise.all([
+        const promises = [
             si.currentLoad(),
             si.mem(),
             si.fsSize(),
             si.cpuTemperature()
-        ]);
+        ];
+
+        // Só adiciona as promessas de SSH se solicitado explicitamente
+        if (checkRemote) {
+            promises.push(getRemoteServerStats('SRV Service', '10.0.0.45'));
+            promises.push(getRemoteServerStats('SRV Portal Hotspot', '10.0.0.46'));
+        }
+
+        const results = await Promise.all(promises);
+        const [cpuLoad, mem, fsSize, temp] = results;
+
+        let remoteServers = [];
+        if (checkRemote) {
+            remoteServers = [results[4], results[5]];
+        } else {
+            // Retorna estado neutro se não for solicitado
+            const srvService = { name: 'SRV Service', ip: '10.0.0.45', online: false, error: 'Clique em "Verificar Conexão" para atualizar.' };
+            const srvPortal = { name: 'SRV Portal Hotspot', ip: '10.0.0.46', online: false, error: 'Clique em "Verificar Conexão" para atualizar.' };
+            remoteServers = [srvService, srvPortal];
+        }
 
         // 3. Buffer de Erros Offline
         const logFilePath = path.join(__dirname, '../services/offline_error_log.json');
@@ -279,7 +341,8 @@ const getSystemHealth = async (req, res) => {
                     },
                     disk: fsSize.length > 0 ? { used: fsSize[0].use, size: fsSize[0].size, usedBytes: fsSize[0].used } : null,
                     temp: (temp.main && temp.main > 0) ? temp.main : 'N/A'
-                }
+                },
+                remoteServers: remoteServers // [NOVO] Envia dados dos servidores remotos
             }
         });
     } catch (error) {

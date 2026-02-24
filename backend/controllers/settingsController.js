@@ -13,7 +13,6 @@ const { logAction } = require('../services/auditLogService');
  * Obtém as configurações gerais (Nome, Logo, Cor)
  */
 const getGeneralSettings = async (req, res) => {
-    // console.log("getGeneralSettings: Buscando configurações...");
     try {
         const settings = await pool.query(
             'SELECT company_name, logo_url, primary_color, background_color, font_color, font_family, font_size, background_image_url, modal_background_color, modal_font_color, modal_border_color, sidebar_color, login_background_color, login_form_background_color, login_font_color, login_button_color, login_logo_url, email_host, email_port, email_secure, email_user, email_from, nav_title_color, label_color, placeholder_color, tab_link_color, tab_link_active_color, terms_content, marketing_policy_content, admin_session_timeout, loader_enabled, loader_timeout FROM system_settings WHERE id = 1'
@@ -34,15 +33,12 @@ const getGeneralSettings = async (req, res) => {
 };
 
 const updateBackgroundImage = async (req, res) => {
-    console.log("updateBackgroundImage: Iniciando atualização...");
     const newBackgroundImageFile = req.file;
-    console.log("updateBackgroundImage: Ficheiro recebido (req.file):", newBackgroundImageFile ? newBackgroundImageFile.filename : "Nenhum");
 
     try {
         if (newBackgroundImageFile) {
             const relativePath = path.relative('public', newBackgroundImageFile.path);
             const backgroundImageUrlForDB = '/' + relativePath.replace(/\\/g, '/');
-            console.log(`updateBackgroundImage: Novo background image URL para DB: ${backgroundImageUrlForDB}`);
 
             const updateQuery = `UPDATE system_settings SET background_image_url = $1 WHERE id = 1 RETURNING *`;
             const updatedSettings = await pool.query(updateQuery, [backgroundImageUrlForDB]);
@@ -52,7 +48,7 @@ const updateBackgroundImage = async (req, res) => {
                 throw new Error("Falha ao encontrar o registo de configurações para atualizar.");
             }
 
-            console.log("updateBackgroundImage: Configurações atualizadas no DB:", updatedSettings.rows[0]);
+            // console.log("updateBackgroundImage: Configurações atualizadas no DB:", updatedSettings.rows[0]);
 
             await logAction({
                 req,
@@ -67,7 +63,6 @@ const updateBackgroundImage = async (req, res) => {
                 settings: updatedSettings.rows[0]
             });
         } else {
-            console.log("updateBackgroundImage: Nenhum ficheiro enviado para atualização.");
             res.status(400).json({
                 message: "Nenhum ficheiro enviado."
             });
@@ -95,7 +90,6 @@ const updateBackgroundImage = async (req, res) => {
  * Obtém as configurações do Hotspot (Timeout, Whitelist)
  */
 const getHotspotSettings = async (req, res) => {
-    console.log("getHotspotSettings: Buscando configurações...");
     try {
         const settings = await pool.query(
             'SELECT session_timeout_minutes, domain_whitelist FROM system_settings WHERE id = 1'
@@ -105,7 +99,6 @@ const getHotspotSettings = async (req, res) => {
              console.warn("getHotspotSettings: Nenhuma configuração encontrada (ID 1 não existe?).");
             return res.status(404).json({ message: "Configurações do hotspot não encontradas." });
         }
-        console.log("getHotspotSettings: Configurações encontradas:", settings.rows[0]);
         res.json(settings.rows[0]);
     } catch (error) {
         console.error('Erro ao buscar configs do hotspot:', error);
@@ -118,8 +111,6 @@ const getHotspotSettings = async (req, res) => {
  * Espera 'application/json'
  */
 const updateHotspotSettings = async (req, res) => {
-     console.log("updateHotspotSettings: Iniciando atualização...");
-     console.log("updateHotspotSettings: Dados recebidos (body):", req.body);
     // Estes dados vêm de um JSON (application/json)
     const { sessionTimeoutMinutes, domainWhitelist } = req.body;
 
@@ -144,7 +135,7 @@ const updateHotspotSettings = async (req, res) => {
         .map(domain => domain.trim().toLowerCase()) // Limpa e padroniza
         .filter(domain => domain.length > 0 && domain.includes('.')); // Filtra vazios ou inválidos
         // TODO: Poderia adicionar validação de formato de domínio mais estrita aqui (regex)
-    console.log("updateHotspotSettings: Whitelist após limpeza:", cleanedWhitelist);
+    // console.log("updateHotspotSettings: Whitelist após limpeza:", cleanedWhitelist);
 
     // --- Executa a Atualização ---
     try {
@@ -154,7 +145,6 @@ const updateHotspotSettings = async (req, res) => {
             WHERE id = 1
             RETURNING session_timeout_minutes, domain_whitelist
         `;
-         console.log("updateHotspotSettings: Executando query:", query, "com params:", [timeoutNum, cleanedWhitelist]);
         const updatedSettings = await pool.query(query, [timeoutNum, cleanedWhitelist]);
 
         if (updatedSettings.rows.length === 0) {
@@ -162,7 +152,7 @@ const updateHotspotSettings = async (req, res) => {
              throw new Error("Falha ao encontrar o registo de configurações para atualizar.");
         }
 
-        console.log("updateHotspotSettings: Configs do Hotspot atualizadas no DB:", updatedSettings.rows[0]);
+        // console.log("updateHotspotSettings: Configs do Hotspot atualizadas no DB:", updatedSettings.rows[0]);
 
         await logAction({
             req,
@@ -191,9 +181,7 @@ const updateHotspotSettings = async (req, res) => {
 };
 
 const updateLoginAppearanceSettings = async (req, res) => {
-    console.log("updateLoginAppearanceSettings: Iniciando atualização...");
     const { login_background_color, login_form_background_color, login_font_color, login_button_color } = req.body;
-    console.log("updateLoginAppearanceSettings: Dados recebidos (body):", { login_background_color, login_form_background_color, login_font_color, login_button_color });
 
     try {
         const params = [];
@@ -258,15 +246,12 @@ const updateLoginAppearanceSettings = async (req, res) => {
 };
 
 const updateLoginLogo = async (req, res) => {
-    console.log("updateLoginLogo: Iniciando atualização...");
     const newLoginLogoFile = req.file;
-    console.log("updateLoginLogo: Ficheiro recebido (req.file):", newLoginLogoFile ? newLoginLogoFile.filename : "Nenhum");
 
     try {
         if (newLoginLogoFile) {
             const relativePath = path.relative('public', newLoginLogoFile.path);
             const loginLogoUrlForDB = '/' + relativePath.replace(/\\/g, '/');
-            console.log(`updateLoginLogo: Novo login logo URL para DB: ${loginLogoUrlForDB}`);
 
             const updateQuery = `UPDATE system_settings SET login_logo_url = $1 WHERE id = 1 RETURNING *`;
             const updatedSettings = await pool.query(updateQuery, [loginLogoUrlForDB]);
@@ -276,7 +261,7 @@ const updateLoginLogo = async (req, res) => {
                 throw new Error("Falha ao encontrar o registo de configurações para atualizar.");
             }
 
-            console.log("updateLoginLogo: Configurações atualizadas no DB:", updatedSettings.rows[0]);
+            // console.log("updateLoginLogo: Configurações atualizadas no DB:", updatedSettings.rows[0]);
 
             await logAction({
                 req,
@@ -291,7 +276,6 @@ const updateLoginLogo = async (req, res) => {
                 settings: updatedSettings.rows[0]
             });
         } else {
-            console.log("updateLoginLogo: Nenhum ficheiro enviado para atualização.");
             res.status(400).json({
                 message: "Nenhum ficheiro enviado."
             });
@@ -313,7 +297,6 @@ const updateLoginLogo = async (req, res) => {
 
 const updateAppearanceSettings = async (req, res) => {
     try {
-        console.log('Recebendo atualização de aparência:', req.body);
         
         const updates = {};
         const files = req.files || {};
@@ -365,11 +348,9 @@ const updateAppearanceSettings = async (req, res) => {
         // Processar remoção de imagens
         if (req.body.removeBackgroundImage === 'true') {
             updates.background_image_url = null;
-            console.log("Marcação para remover imagem de fundo recebida.");
         }
         if (req.body.removeLoginLogo === 'true') {
             updates.login_logo_url = null;
-            console.log("Marcação para remover logo de login recebida.");
         }
 
         // Se não houver atualizações, retorne erro
@@ -415,8 +396,6 @@ const updateAppearanceSettings = async (req, res) => {
 };
 
 const resetAppearanceSettings = async (req, res) => {
-    console.log("resetAppearanceSettings: Iniciando a reposição das configurações de aparência...");
-
     try {
         // [MODIFICADO] Define os valores padrão do novo tema "Corporativo UI" (Slate/Blue)
         const defaults = {
@@ -482,7 +461,6 @@ const resetAppearanceSettings = async (req, res) => {
  * [NOVO] Atualiza as configurações de SMTP.
  */
 const updateSmtpSettings = async (req, res) => {
-    console.log("updateSmtpSettings: Iniciando atualização...");
     const {
         email_host,
         email_port,
@@ -532,7 +510,7 @@ const updateSmtpSettings = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erro ao atualizar configurações de SMTP:', error);
+        console.error('Erro ao atualizar configurações de SMTP:', error.message);
         res.status(500).json({ success: false, message: 'Erro interno ao salvar as configurações de SMTP.' });
     }
 };

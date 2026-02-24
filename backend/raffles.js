@@ -5,7 +5,6 @@ const express = require('express');
 const router = express.Router();
 const raffleController = require('../controllers/raffleController');
 const verifyToken = require('../middlewares/authMiddleware');
-// [CORRIGIDO] Importa o middleware correto para verificação de permissões granulares.
 const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 // Rota para buscar todos os sorteios

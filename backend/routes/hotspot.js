@@ -4,27 +4,27 @@
 const express = require('express');
 const router = express.Router();
 const hotspotController = require('../controllers/hotspotController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const verifyToken = require('../middlewares/authMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 // Rota para pesquisar utilizadores do hotspot
 router.get(
     '/users',
-    [authMiddleware, checkPermission('hotspot.read')],
+    [verifyToken, checkPermission('hotspot.read')],
     hotspotController.searchUsers
 );
 
 // Rota para obter a contagem total de utilizadores do hotspot
 router.get(
     '/total-users',
-    [authMiddleware, checkPermission('dashboard.read')], // Acesso geral de dashboard
+    [verifyToken, checkPermission('dashboard.read')], // Acesso geral de dashboard
     hotspotController.getTotalHotspotUsers
 );
 
 // [NOVO] Rota para estatísticas do relatório completo (Gráfico + Tabela)
 router.get(
     '/report-stats',
-    [authMiddleware, checkPermission('hotspot.read')],
+    [verifyToken, checkPermission('hotspot.read')],
     hotspotController.getHotspotReportStats
 );
 

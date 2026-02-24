@@ -50,7 +50,12 @@ const checkInfluxConnection = async () => {
 };
 
 if (influxUrl && influxToken && influxOrg && influxBucket) {
-    const influxDB = new InfluxDB({ url: influxUrl, token: influxToken });
+    // [NOVO] Aumenta o timeout padrão de 10s para 30s para dar mais tempo ao InfluxDB responder sob carga.
+    const influxDB = new InfluxDB({
+        url: influxUrl,
+        token: influxToken,
+        transportOptions: { timeout: 30000 }
+    });
     queryApi = influxDB.getQueryApi(influxOrg);
     checkInfluxConnection(); // Faz a primeira verificação na inicialização
 } else {

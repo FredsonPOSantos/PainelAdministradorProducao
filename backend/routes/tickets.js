@@ -4,12 +4,12 @@
 const express = require('express');
 const router = express.Router();
 const ticketController = require('../controllers/ticketController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware'); // [NOVO]
+const verifyToken = require('../middlewares/authMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 const ticketAttachmentUploadMiddleware = require('../middlewares/ticketAttachmentUploadMiddleware');
 
 // Todas as rotas de tickets requerem autenticação
-router.use(authMiddleware);
+router.use(verifyToken);
 
 // Criar um novo ticket
 router.post('/', ticketController.createTicket); // Não precisa de permissão especial

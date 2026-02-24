@@ -19,7 +19,7 @@ const getActiveCampaign = async (req, res) => {
 
     const client = await pool.connect();
     try {
-        console.log(`[Public API] Recebida solicitação de campanha para o roteador: ${routerName}`);
+        // console.log(`[Public API] Recebida solicitação de campanha para o roteador: ${routerName}`);
 
         // 1. Buscar as configurações gerais do sistema. Elas são úteis em ambos os casos (com ou sem campanha).
         const settingsResult = await client.query('SELECT * FROM system_settings WHERE id = 1');
@@ -29,7 +29,7 @@ const getActiveCampaign = async (req, res) => {
         const routerResult = await client.query('SELECT id, group_id FROM routers WHERE name = $1', [routerName]);
 
         if (routerResult.rows.length === 0) {
-            console.log(`[Public API] Roteador '${routerName}' não encontrado. Servindo layout padrão.`);
+            // console.log(`[Public API] Roteador '${routerName}' não encontrado. Servindo layout padrão.`);
             return res.status(200).json({ use_default: true, loginPageSettings });
         }
 
@@ -60,12 +60,12 @@ const getActiveCampaign = async (req, res) => {
 
         // 4. Se nenhuma campanha for encontrada, servir o layout padrão
         if (campaignResult.rows.length === 0) {
-            console.log(`[Public API] Nenhuma campanha ativa para '${routerName}'. Servindo layout padrão.`);
+            // console.log(`[Public API] Nenhuma campanha ativa para '${routerName}'. Servindo layout padrão.`);
             return res.status(200).json({ use_default: true, loginPageSettings });
         }
 
         const activeCampaign = campaignResult.rows[0];
-        console.log(`[Public API] Campanha ativa encontrada: "${activeCampaign.name}" (ID: ${activeCampaign.id})`);
+        // console.log(`[Public API] Campanha ativa encontrada: "${activeCampaign.name}" (ID: ${activeCampaign.id})`);
 
         // [NOVO] Incrementa o contador de visualizações da campanha.
         // Usamos um `await` aqui para garantir que a atualização ocorra, mas não bloqueamos a resposta ao cliente.

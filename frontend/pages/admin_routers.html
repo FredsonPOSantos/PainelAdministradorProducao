@@ -67,12 +67,10 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Nome do Roteador</th>
+                    <th>Nome</th>
                     <th>Status</th>
-                    <th>Grupo</th>
                     <th>Observação</th>
                     <th>Ações</th>
-                    
                 </tr>
             </thead>
             <tbody>
@@ -151,6 +149,12 @@
             <div class="input-group">
                 <label for="routerIpAddress">Endereço IP</label>
                 <input type="text" id="routerIpAddress" placeholder="Ex: 192.168.1.1" pattern="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$" title="Digite um endereço IP válido.">
+            </div>
+            <!-- NOVO CAMPO DE INTERFACE DE MONITORAMENTO -->
+            <div class="input-group">
+                <label for="routerMonitoringInterface">Interface de Monitoramento</label>
+                <input type="text" id="routerMonitoringInterface" placeholder="Ex: ether1-gateway (opcional)">
+                <small class="input-hint">Se preenchido, o roteador será considerado offline se esta interface estiver inativa, mesmo que o IP responda.</small>
             </div>
             <div class="input-group">
                 <label for="routerDescription">Observação</label>

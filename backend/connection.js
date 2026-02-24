@@ -20,6 +20,7 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   max: 10,
   idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000 // [ADICIONADO] Aumenta o timeout de conexão para 10s para ser mais tolerante a redes lentas.
 });
 
 // [NOVO] Objeto para monitorizar o estado da conexão
@@ -163,13 +164,15 @@ async function checkAndUpgradeSchema(client) {
         // Cria utilizador padrão: admin@rota.com / admin
         try {
             const salt = await bcrypt.genSalt(10);
-            const hash = await bcrypt.hash('admin', salt);
+            // [SEGURANÇA] Usa variável de ambiente ou fallback, evitando hardcode total
+            const defaultPass = process.env.DEFAULT_ADMIN_PASS || 'admin';
+            const hash = await bcrypt.hash(defaultPass, salt);
             
             await client.query(`
                 INSERT INTO admin_users (email, password_hash, role, nome_completo, is_active)
                 VALUES ('admin@rota.com', $1, 'master', 'Administrador Sistema', true)
             `, [hash]);
-            console.log("   ✅ Utilizador padrão criado: admin@rota.com / admin");
+            console.log(`   ✅ Utilizador padrão criado: admin@rota.com / ${process.env.DEFAULT_ADMIN_PASS ? '******' : 'admin'}`);
         } catch (err) {
             console.error("   ❌ Erro ao criar utilizador padrão:", err.message);
         }
@@ -248,6 +251,21 @@ async function checkAndUpgradeSchema(client) {
         console.log("   ✅ Coluna 'is_maintenance' adicionada.");
     }
 
+    // [NOVO] Adiciona colunas para monitoramento de interface e tempo de inatividade
+    const monitoringInterfaceExists = await checkColumn('routers', 'monitoring_interface');
+    if (!monitoringInterfaceExists) {
+        console.log("   -> Adicionando coluna 'monitoring_interface' à tabela 'routers'...");
+        await client.query(`ALTER TABLE routers ADD COLUMN monitoring_interface VARCHAR(255)`);
+        console.log("   ✅ Coluna 'monitoring_interface' adicionada.");
+    }
+
+    const statusChangedAtExists = await checkColumn('routers', 'status_changed_at');
+    if (!statusChangedAtExists) {
+        console.log("   -> Adicionando coluna 'status_changed_at' à tabela 'routers'...");
+        await client.query(`ALTER TABLE routers ADD COLUMN status_changed_at TIMESTAMPTZ`);
+        console.log("   ✅ Coluna 'status_changed_at' adicionada.");
+    }
+
     // [NOVO] Verifica e adiciona a coluna 'is_system' na tabela 'banners'
     const isSystemBannersExists = await checkColumn('banners', 'is_system');
     if (!isSystemBannersExists) {
@@ -310,6 +328,40 @@ async function checkAndUpgradeSchema(client) {
              await client.query('ALTER TABLE tickets ALTER COLUMN created_by_user_id DROP NOT NULL');
              console.log("   ✅ Coluna 'created_by_user_id' agora permite NULL.");
         }
+    }
+
+    // [NOVO] Tabela de log de uptime para cálculos de disponibilidade
+    const uptimeLogExists = await checkTable('router_uptime_log');
+    if (!uptimeLogExists) {
+        console.log("   -> Tabela 'router_uptime_log' não encontrada. Criando...");
+        await client.query(`
+            CREATE TABLE router_uptime_log (
+                id SERIAL PRIMARY KEY,
+                router_host VARCHAR(50) NOT NULL,
+                collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+        await client.query('CREATE INDEX IF NOT EXISTS idx_router_uptime_log_host_time ON router_uptime_log (router_host, collected_at DESC);');
+        console.log("   ✅ Tabela 'router_uptime_log' e seu índice foram criados.");
+    }
+
+    // [NOVO] Tabela de Consolidação Diária (Dados Frios/Mornos)
+    // Armazena apenas 1 registo por dia por roteador com o resumo estatístico.
+    const dailyStatsExists = await checkTable('router_daily_stats');
+    if (!dailyStatsExists) {
+        console.log("   -> Tabela 'router_daily_stats' não encontrada. Criando...");
+        await client.query(`
+            CREATE TABLE router_daily_stats (
+                id SERIAL PRIMARY KEY,
+                router_id INTEGER REFERENCES routers(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                uptime_percent DECIMAL(5,2) DEFAULT 0,
+                downtime_minutes INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(router_id, date)
+            );
+        `);
+        console.log("   ✅ Tabela 'router_daily_stats' criada para histórico consolidado.");
     }
 
     // [NOVO] Garante que todas as permissões do sistema existem na tabela 'permissions'
@@ -568,6 +620,42 @@ const testInitialConnection = async () => {
                     if (result.rowCount > 0) {
                         // console.log(`[MAINTENANCE] ${result.rowCount} campanhas expiradas foram desativadas.`);
                     }
+
+                    // [MODIFICADO] Arquivamento e Limpeza de logs de uptime antigos (mantém últimos 30 dias)
+                    // 1. Seleciona os registos antigos
+                    const oldLogsResult = await client.query("SELECT * FROM router_uptime_log WHERE collected_at < NOW() - INTERVAL '30 days' LIMIT 5000");
+                    
+                    if (oldLogsResult.rows.length > 0) {
+                        const logsToArchive = oldLogsResult.rows;
+                        const idsToDelete = logsToArchive.map(row => row.id);
+                        
+                        // 2. Prepara o diretório de arquivos
+                        const archiveDir = path.join(__dirname, '../logs/archives');
+                        if (!fs.existsSync(archiveDir)) {
+                            fs.mkdirSync(archiveDir, { recursive: true });
+                        }
+
+                        // 3. Salva em ficheiro JSON (Acumulativo)
+                        // O arquivo cresce até ser excluído manualmente ou via API.
+                        const archiveFile = path.join(archiveDir, `uptime_archive_cumulative.json`);
+                        
+                        // Lê o arquivo existente ou inicia um array vazio
+                        let fileContent = [];
+                        if (fs.existsSync(archiveFile)) {
+                            try {
+                                fileContent = JSON.parse(fs.readFileSync(archiveFile, 'utf8'));
+                            } catch (e) { /* Ignora erro de parse se arquivo estiver corrompido e sobrescreve/anexa */ }
+                        }
+                        
+                        // Concatena e salva
+                        const newContent = fileContent.concat(logsToArchive);
+                        fs.writeFileSync(archiveFile, JSON.stringify(newContent, null, 2));
+
+                        // 4. Apaga do banco de dados apenas os que foram arquivados
+                        await client.query("DELETE FROM router_uptime_log WHERE id = ANY($1)", [idsToDelete]);
+                        console.log(`[MAINTENANCE] ${idsToDelete.length} registos de uptime antigos foram arquivados em '${archiveFile}' e removidos do banco.`);
+                    }
+
                 } finally {
                     client.release();
                 }

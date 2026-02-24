@@ -94,6 +94,73 @@ if (window.initReportsPage) {
                     { key: 'observacao', label: 'Observação' }
                 ]
             },
+            'router_uptime': { // [NOVO] Relatório de Disponibilidade por Período
+                title: 'Disponibilidade de Roteadores (Período)',
+                endpoint: '/api/routers/uptime-report',
+                filters: [
+                    { id: 'startDate', label: 'Data Início', type: 'date' },
+                    { id: 'endDate', label: 'Data Fim', type: 'date' },
+                    { id: 'routerId', label: 'Roteador', type: 'select', source: '/api/routers', key: 'id', text: 'name' }
+                ],
+                columns: [
+                    { key: 'name', label: 'Roteador' },
+                    { key: 'ip', label: 'IP' },
+                    { key: 'uptime_formatted', label: 'Tempo Online' },
+                    { key: 'availability', label: 'Disponibilidade (%)' },
+                    { key: 'period', label: 'Período Analisado' }
+                ]
+            },
+            'archived_logs': { // [NOVO] Relatório de Arquivos de Log
+                title: 'Arquivos de Log Antigos (Backup)',
+                endpoint: '/api/logs/archives',
+                filters: [],
+                columns: [
+                    { key: 'name', label: 'Nome do Arquivo' },
+                    { key: 'size', label: 'Tamanho' },
+                    { key: 'created_at', label: 'Data Criação', type: 'datetime' }
+                ],
+                actions: [ // [MODIFICADO] Agora suporta múltiplas ações (array)
+                    {
+                        label: 'Baixar',
+                        icon: 'fas fa-download',
+                        class: 'btn-secondary btn-sm',
+                        handler: async (row) => {
+                            try {
+                                const token = localStorage.getItem('adminToken');
+                                const response = await fetch(`http://${window.location.hostname}:3000/api/logs/archives/${row.name}`, {
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                if (!response.ok) throw new Error('Erro ao baixar arquivo');
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = row.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                            } catch (e) {
+                                showNotification('Erro ao baixar arquivo: ' + e.message, 'error');
+                            }
+                        }
+                    },
+                    {
+                        label: 'Excluir',
+                        icon: 'fas fa-trash',
+                        class: 'btn-danger btn-sm',
+                        handler: async (row) => {
+                            if (!confirm(`Tem certeza que deseja excluir o arquivo "${row.name}"? Esta ação não pode ser desfeita.`)) return;
+                            try {
+                                await apiRequest(`/api/logs/archives/${row.name}`, 'DELETE');
+                                showNotification('Arquivo excluído com sucesso.', 'success');
+                                fetchData(); // Recarrega a lista
+                            } catch (e) {
+                                showNotification('Erro ao excluir: ' + e.message, 'error');
+                            }
+                        }
+                    }
+                ]
+            },
             'raffles': {
                 title: 'Sorteios Realizados',
                 endpoint: '/api/raffles',
@@ -326,6 +393,35 @@ if (window.initReportsPage) {
                     td.textContent = val;
                     tr.appendChild(td);
                 });
+
+                // [NOVO] Renderiza botão de ação se configurado (para download de logs)
+                // [MODIFICADO] Suporta tanto 'rowAction' (legado/único) quanto 'actions' (array)
+                const actions = currentReportConfig.actions || (currentReportConfig.rowAction ? [currentReportConfig.rowAction] : []);
+                
+                if (actions.length > 0) {
+                    const td = document.createElement('td');
+                    td.style.display = 'flex';
+                    td.style.gap = '5px';
+                    
+                    actions.forEach(action => {
+                        const btn = document.createElement('button');
+                        btn.className = action.class || 'btn-secondary btn-sm';
+                        btn.innerHTML = `<i class="${action.icon}"></i> ${action.label}`;
+                        btn.onclick = () => action.handler(row);
+                        td.appendChild(btn);
+                    });
+                    
+                    tr.appendChild(td);
+                    
+                    // Adiciona cabeçalho se não existir
+                    if (!thead.querySelector('th.action-col')) {
+                        const th = document.createElement('th');
+                        th.className = 'action-col';
+                        th.textContent = 'Ações';
+                        thead.querySelector('tr').appendChild(th);
+                    }
+                }
+
                 tbody.appendChild(tr);
             });
 

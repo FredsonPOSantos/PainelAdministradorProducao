@@ -22,8 +22,8 @@ const getAllRouters = async (req, res) => {
   // [MODIFICADO] Esta rota agora é usada apenas para a lista simples na gestão.
   // A nova rota /status é usada para a página de monitoramento.
   try {
-    // [MODIFICADO] Inclui campos de autenticação API
-    const allRouters = await pool.query('SELECT id, name, status, observacao, group_id, ip_address, is_maintenance FROM routers ORDER BY name ASC');
+    // [MODIFICADO] Inclui os novos campos de monitoramento e inatividade
+    const allRouters = await pool.query('SELECT id, name, status, observacao, group_id, ip_address, is_maintenance, monitoring_interface, status_changed_at FROM routers ORDER BY name ASC');
     res.json(allRouters.rows);
   } catch (error) {
     console.error('Erro ao listar roteadores:', error);
@@ -44,6 +44,7 @@ const getRouterReport = async (req, res) => {
                 r.ip_address,
                 r.status,
                 r.observacao,
+                r.is_maintenance, -- [NOVO] Inclui status de manutenção no relatório
                 TO_CHAR(MIN(u.data_cadastro), 'DD/MM/YYYY HH24:MI') as first_activity
             FROM routers r
             LEFT JOIN userdetails u ON r.name = u.router_name
@@ -122,7 +123,7 @@ const getRoutersStatus = async (req, res) => {
         const { rows: routers } = await pool.query(pgQuery);
 
         // [DEBUG] Log temporário para verificar latência vinda do banco
-        console.log('[DEBUG-ROUTER-STATUS] Latências do DB:', routers.map(r => `${r.name}: ${r.latency}`));
+        // console.log('[DEBUG-ROUTER-STATUS] Latências do DB:', routers.map(r => `${r.name}: ${r.latency}`));
 
         // 2. Enriquecer cada roteador com dados de ping e InfluxDB em paralelo
         const enrichedRouters = await Promise.all(routers.map(async (router) => {
@@ -231,7 +232,7 @@ const getRoutersStatus = async (req, res) => {
                     }
 
                     // [NOVO] Log de depuração para contagem de clientes
-                    console.log(`[CLIENT-COUNT-DEBUG] Roteador: ${router.name}, Hotspot: ${hotspot_clients}, DHCP: ${dhcp_clients}, Wi-Fi: ${wifi_clients}`);
+                    // console.log(`[CLIENT-COUNT-DEBUG] Roteador: ${router.name}, Hotspot: ${hotspot_clients}, DHCP: ${dhcp_clients}, Wi-Fi: ${wifi_clients}`);
 
                     // [MODIFICADO] A contagem de clientes agora prioriza os usuários ativos do hotspot, com fallback para Wi-Fi e DHCP.
                     connected_clients = hotspot_clients > 0 ? hotspot_clients : (wifi_clients > 0 ? wifi_clients : dhcp_clients);
@@ -265,7 +266,7 @@ const getRoutersStatus = async (req, res) => {
                         }
                     }
                     // [NOVO] Log para depuração da interface padrão
-                    console.log(`[ROUTER-STATUS-DEBUG] Roteador: ${router.name}, IP: ${cleanIp}, Interface Padrão Escolhida: ${default_interface}`);
+                    // console.log(`[ROUTER-STATUS-DEBUG] Roteador: ${router.name}, IP: ${cleanIp}, Interface Padrão Escolhida: ${default_interface}`);
 
                     // Query para obter a lista de interfaces existentes
                     // [CORRIGIDO] Usando `schema.tagValues` e o predicado correto, exatamente como funciona em `monitoring.js`.
@@ -329,7 +330,7 @@ const getRoutersStatus = async (req, res) => {
 
 const updateRouter = async (req, res) => {
     const { id } = req.params;
-    const { observacao, ip_address, is_maintenance } = req.body; 
+    const { observacao, ip_address, is_maintenance, monitoring_interface, username, password, api_port } = req.body; 
 
     const fields = [];
     const values = [];
@@ -350,6 +351,28 @@ const updateRouter = async (req, res) => {
     if (is_maintenance !== undefined) {
         fields.push(`is_maintenance = $${queryIndex++}`);
         values.push(is_maintenance);
+    }
+
+    if (monitoring_interface !== undefined) {
+        fields.push(`monitoring_interface = $${queryIndex++}`);
+        values.push(monitoring_interface === '' ? null : monitoring_interface);
+    }
+
+    // [NOVO] Adiciona campos de credenciais da API para o monitoramento de interface
+    if (username !== undefined) {
+        fields.push(`username = $${queryIndex++}`);
+        values.push(username === '' ? null : username);
+    }
+    // A senha só é atualizada se um novo valor for fornecido
+    if (password) {
+        fields.push(`password = $${queryIndex++}`);
+        values.push(password);
+    }
+    if (api_port !== undefined) {
+        // Garante que o valor é um número ou nulo
+        const portValue = api_port ? parseInt(api_port, 10) : null;
+        fields.push(`api_port = $${queryIndex++}`);
+        values.push(isNaN(portValue) ? null : portValue);
     }
 
     if (fields.length === 0) {
@@ -376,6 +399,11 @@ const updateRouter = async (req, res) => {
             description = `Utilizador "${req.user.email}" ${isMaint ? 'ativou' : 'desativou'} o modo de manutenção para o roteador "${updatedRouter.rows[0].name}".`;
         }
 
+        // [SEGURANÇA] Remove a senha dos detalhes antes de salvar no log de auditoria
+        const safeDetails = { ...req.body };
+        if (safeDetails.password) delete safeDetails.password;
+        if (safeDetails.username) delete safeDetails.username; // Opcional, mas boa prática
+
         await logAction({
             req,
             action: action,
@@ -383,7 +411,7 @@ const updateRouter = async (req, res) => {
             description: description,
             target_type: 'router',
             target_id: id,
-            details: req.body
+            details: safeDetails
         });
 
         res.json({ message: 'Roteador atualizado com sucesso!', router: updatedRouter.rows[0] });
@@ -398,7 +426,7 @@ const updateRouter = async (req, res) => {
             details: { error: error.message }
         });
 
-        console.error('Erro ao atualizar roteador:', error);
+        console.error('Erro ao atualizar roteador:', error.message);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 };
@@ -495,71 +523,101 @@ const deleteRouterPermanently = async (req, res) => {
 
 const checkRouterStatus = async (req, res) => {
     const { id } = req.params;
-    const { period } = req.body; // [NOVO] Recebe o período (ex: '24h', '7d')
+    const { period } = req.body; // ex: '24h', '7d', '30d'
     try {
-        const routerResult = await pool.query('SELECT ip_address FROM routers WHERE id = $1', [id]);
+        const routerResult = await pool.query('SELECT ip_address, status, is_maintenance FROM routers WHERE id = $1', [id]);
         if (routerResult.rowCount === 0) {
             return res.status(404).json({ message: 'Roteador não encontrado.' });
         }
-        // [CORREÇÃO] Remove espaços em branco do IP para garantir correspondência exata
-        const ip = routerResult.rows[0].ip_address ? routerResult.rows[0].ip_address.trim() : null;
+        const router = routerResult.rows[0];
+        const ip = router.ip_address ? router.ip_address.trim() : null; // Garante que não há espaços
         if (!ip) {
-            return res.status(400).json({ message: 'Este roteador não tem um endereço IP configurado.' });
+            // Se não tem IP, o status já deve ser offline, mas confirmamos.
+            await pool.query("UPDATE routers SET status = 'offline' WHERE id = $1 AND status != 'offline'", [id]);
+            const finalState = { status: 'offline', latency: null, status_changed_at: router.status_changed_at, availability: null };
+            return res.json(finalState);
         }
-        const pingResult = await ping.promise.probe(ip);
+        const pingResult = await ping.promise.probe(ip, { timeout: 2 });
         const newStatus = pingResult.alive ? 'online' : 'offline';
         // [NOVO] Captura a latência se estiver vivo
         const latency = pingResult.alive && typeof pingResult.time === 'number' ? Math.round(pingResult.time) : null;
-        
-        // [NOVO] Tenta buscar o uptime do InfluxDB se estiver online
-        let uptime = null;
-        let availability = null; // [NOVO] Variável para disponibilidade
 
-        // [CORREÇÃO] Verifica se queryApi e influxBucket estão disponíveis
-        if (newStatus === 'online' && queryApi && influxBucket) {
+        let updateQuery;
+        const queryParams = [newStatus, latency, id];
+        
+        // [CORREÇÃO] Se estiver em manutenção, NÃO atualiza o status no banco de dados.
+        // O estado de manutenção é crítico e manual, não deve ser sobrescrito por automação.
+        if (!router.is_maintenance) {
+            if (newStatus === 'online') {
+                if (router.status !== 'online') {
+                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), status_changed_at = NOW() WHERE id = $3';
+                } else {
+                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, last_seen = NOW() WHERE id = $3';
+                }
+            } else {
+                if (router.status !== 'offline') {
+                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, status_changed_at = NOW() WHERE id = $3';
+                } else {
+                    // Se já estava offline, não atualiza o banco para preservar o 'status_changed_at' original.
+                    updateQuery = null;
+                }
+            }
+            if (updateQuery) {
+                await pool.query(updateQuery, queryParams);
+            }
+        }
+
+        // Re-fetch para obter o estado mais recente, incluindo o status_changed_at
+        const finalStateResult = await pool.query('SELECT status, latency, status_changed_at, is_maintenance FROM routers WHERE id = $1', [id]);
+        const finalState = { ...finalStateResult.rows[0] };
+
+        // Se estiver online, busca o uptime e a disponibilidade
+        if (finalState.status === 'online' && queryApi && influxBucket) {
+            // Busca Uptime
             try {
                 const uptimeQuery = `
                     from(bucket: "${influxBucket}")
-                      |> range(start: -1h)
-                      |> filter(fn: (r) => r._measurement == "system_resource")
+                      |> range(start: -15m) // Busca na última hora para garantir que pega o último dado
+                      |> filter(fn: (r) => r._measurement == "system_resource" and r._field == "uptime_seconds")
                       |> filter(fn: (r) => r.router_host == "${ip}")
-                      // [CORRIGIDO] Usa especificamente uptime_seconds que sabemos existir e ser numérico
-                      |> filter(fn: (r) => r._field == "uptime_seconds")
                       |> last()
                 `;
-                const result = await queryApi.collectRows(uptimeQuery);
-                if (result.length > 0) uptime = result[0]._value;
-            } catch (e) { console.error(`Erro ao buscar uptime para ${ip}:`, e.message); }
-        }
+                const uptimeRows = await queryApi.collectRows(uptimeQuery);
+                if (uptimeRows.length > 0) {
+                    finalState.uptime_seconds = uptimeRows[0]._value;
+                }
+            } catch (influxError) {
+                console.error(`Erro ao buscar uptime para ${ip}: ${influxError.message}`);
+                finalState.uptime_seconds = null;
+            }
 
-        // [NOVO] Cálculo de Disponibilidade (Availability) se um período for fornecido
-        if (queryApi && period && influxBucket) {
+            // [NOVO] Busca Disponibilidade
+            // Calcula a disponibilidade com base nos logs de coleta do PostgreSQL
             try {
-                // Conta quantas janelas de 5m tiveram dados (online)
-                // [CORRIGIDO] Query simplificada e robusta usando uptime_seconds
+                const range = period || '24h';
                 const availabilityQuery = `
-                    from(bucket: "${influxBucket}")
-                      |> range(start: -${period})
-                      |> filter(fn: (r) => r._measurement == "system_resource")
-                      |> filter(fn: (r) => r.router_host == "${ip}")
-                      |> filter(fn: (r) => r._field == "uptime_seconds")
-                      |> aggregateWindow(every: 5m, fn: count)
-                      |> filter(fn: (r) => r._value > 0)
-                      |> count()
+                    SELECT COUNT(*) 
+                    FROM router_uptime_log 
+                    WHERE router_host = $1 AND collected_at >= NOW() - $2::interval
                 `;
-                const result = await queryApi.collectRows(availabilityQuery);
-                const onlineWindows = result.length > 0 ? result[0]._value : 0;
+                const result = await pool.query(availabilityQuery, [ip, range]);
+                const successfulCollections = parseInt(result.rows[0].count, 10);
                 
-                // [MODIFICADO] Retorna o tempo total online em segundos em vez de porcentagem.
-                // Cada janela representa 5 minutos (300 segundos).
-                // Isso permite que o frontend mostre "Online 6d 23h" em vez de "99%".
-                availability = onlineWindows * 300;
-            } catch (e) { console.error(`Erro ao calcular disponibilidade para ${ip}:`, e.message); }
+                // Assumindo que o agente coleta a cada 30 segundos
+                const collectionIntervalSeconds = 30;
+                let totalExpectedCollections;
+                if (range === '7d') totalExpectedCollections = 7 * 24 * 60 * (60 / collectionIntervalSeconds);
+                else if (range === '30d') totalExpectedCollections = 30 * 24 * 60 * (60 / collectionIntervalSeconds);
+                else totalExpectedCollections = 24 * 60 * (60 / collectionIntervalSeconds); // 24h
+
+                finalState.availability = totalExpectedCollections > 0 ? ((successfulCollections / totalExpectedCollections) * 100).toFixed(2) : '0.00';
+            } catch (pgError) {
+                console.error(`Erro ao buscar disponibilidade no PostgreSQL para ${ip}: ${pgError.message}`);
+                finalState.availability = null;
+            }
         }
 
-        const updateQuery = 'UPDATE routers SET status = $1, last_seen = NOW() WHERE id = $2 RETURNING status';
-        const updateResult = await pool.query(updateQuery, [newStatus, id]);
-        res.json({ status: updateResult.rows[0].status, latency, uptime, availability });
+        res.json(finalState);
     } catch (error) {
         console.error(`Erro ao verificar status do roteador ${id}:`, error);
         res.status(500).json({ message: 'Erro interno ao verificar o status.' });
@@ -574,8 +632,8 @@ const rebootRouter = async (req, res) => {
     const { id } = req.params;
     const { username, password } = req.body;
 
-    // [NOVO] Log para visualizar o corpo da requisição recebida
-    console.log('[DEBUG] Corpo da requisição de reinício recebido:', req.body);
+    // [SEGURANÇA] REMOVIDO log que expunha a senha no console
+    // console.log('[DEBUG] Corpo da requisição de reinício recebido:', req.body);
 
     // Valida se as credenciais foram enviadas
     if (!username || !password) {
@@ -640,7 +698,7 @@ const rebootRouter = async (req, res) => {
         res.json({ success: true, message: `Comando de reinício enviado para o roteador ${name}.` });
 
     } catch (error) {
-        console.error(`Erro ao reiniciar roteador ${id}:`, error);
+        console.error(`Erro ao reiniciar roteador ${id}:`, error.message);
         
         // [CORRIGIDO] Fallback mais robusto para a mensagem de erro
         let userMessage = `Erro ao tentar reiniciar: ${error.message || JSON.stringify(error)}`;
@@ -998,7 +1056,7 @@ const getDhcpLeases = async (req, res) => {
         res.json({ success: true, data: activeLeases });
 
     } catch (error) {
-        console.error(`Erro ao buscar leases DHCP do roteador ${id}:`, error);
+        console.error(`Erro ao buscar leases DHCP do roteador ${id}:`, error.message);
         // [CORREÇÃO] Retorna um status HTTP mais apropriado para timeouts
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: `Gateway Timeout: O roteador não respondeu a tempo ao buscar leases DHCP.` });
@@ -1085,7 +1143,7 @@ const getWifiClients = async (req, res) => {
         res.json({ success: true, data: clientsList });
 
     } catch (error) {
-        console.error(`Erro ao buscar clientes Wi-Fi do roteador ${id}:`, error);
+        console.error(`Erro ao buscar clientes Wi-Fi do roteador ${id}:`, error.message);
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: `Gateway Timeout: O roteador não respondeu a tempo ao buscar clientes Wi-Fi.` });
         }
@@ -1137,7 +1195,7 @@ const getHotspotActive = async (req, res) => {
         res.json({ success: true, data: activeUsersList });
 
     } catch (error) {
-        console.error(`Erro ao buscar utilizadores Hotspot do roteador ${id}:`, error);
+        console.error(`Erro ao buscar utilizadores Hotspot do roteador ${id}:`, error.message);
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: `Gateway Timeout: O roteador não respondeu a tempo ao buscar utilizadores Hotspot.` });
         }
@@ -1194,7 +1252,7 @@ const kickClient = async (req, res) => {
 
         res.json({ success: true, message: 'Cliente desconectado com sucesso.' });
     } catch (error) {
-        console.error(`Erro ao desconectar cliente no roteador ${id}:`, error);
+        console.error(`Erro ao desconectar cliente no roteador ${id}:`, error.message);
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: `Gateway Timeout: O roteador não respondeu a tempo.` });
         }
@@ -1365,7 +1423,7 @@ const manageBackups = async (req, res) => {
                         const targetFile = filesList.find(f => f.name === fileName);
                         
                         // [DEBUG] Log para ajudar a identificar o problema
-                        console.log(`[BACKUP] Excluindo '${fileName}'. Encontrado:`, targetFile ? targetFile['.id'] : 'Não');
+                        // console.log(`[BACKUP] Excluindo '${fileName}'. Encontrado:`, targetFile ? targetFile['.id'] : 'Não');
 
                         if (targetFile && targetFile['.id']) {
                             idToDelete = targetFile['.id'];
@@ -1389,7 +1447,7 @@ const manageBackups = async (req, res) => {
         }
 
         // [DEBUG] Log completo do erro para ver detalhes do 500
-        console.error(`Erro em manageBackups (Router ${id}, Action ${action}):`, error);
+        console.error(`Erro em manageBackups (Router ${id}, Action ${action}):`, error.message);
 
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: `Gateway Timeout: O roteador não respondeu a tempo.` });
@@ -1403,10 +1461,87 @@ const manageBackups = async (req, res) => {
     }
 };
 
+/**
+ * [NOVO] Gera um relatório de uptime/disponibilidade para o período selecionado.
+ * Baseado na tabela 'router_uptime_log'.
+ */
+const getRouterUptimeReport = async (req, res) => {
+    const { startDate, endDate, routerId } = req.query;
+
+    try {
+        // Define datas padrão se não fornecidas (últimos 30 dias)
+        const end = endDate ? new Date(endDate) : new Date();
+        const start = startDate ? new Date(startDate) : new Date(new Date().setDate(end.getDate() - 30));
+        
+        // Ajusta para cobrir o dia inteiro
+        const queryEnd = new Date(end);
+        queryEnd.setHours(23, 59, 59, 999);
+        
+        const queryStart = new Date(start);
+        queryStart.setHours(0, 0, 0, 0);
+
+        let query = `
+            SELECT
+                r.name,
+                r.ip_address,
+                COUNT(rul.id) as uptime_count
+            FROM routers r
+            LEFT JOIN router_uptime_log rul ON r.ip_address = rul.router_host 
+                AND rul.collected_at >= $1 
+                AND rul.collected_at <= $2
+            WHERE 1=1
+        `;
+        
+        const params = [queryStart, queryEnd];
+        let paramIndex = 3;
+
+        if (routerId) {
+            query += ` AND r.id = $${paramIndex++}`;
+            params.push(routerId);
+        }
+
+        query += ` GROUP BY r.id, r.name, r.ip_address ORDER BY r.name`;
+
+        const result = await pool.query(query, params);
+
+        const reportData = result.rows.map(row => {
+            const count = parseInt(row.uptime_count, 10);
+            // O agente coleta a cada 30 segundos.
+            const uptimeSeconds = count * 30; 
+            
+            const totalPeriodSeconds = (queryEnd - queryStart) / 1000;
+            // Calcula percentagem, limitando a 100%
+            const availability = totalPeriodSeconds > 0 ? ((uptimeSeconds / totalPeriodSeconds) * 100) : 0;
+            const finalAvailability = Math.min(availability, 100).toFixed(2);
+
+            // Formata o tempo online
+            const days = Math.floor(uptimeSeconds / 86400);
+            const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+            const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+            const uptimeFormatted = `${days}d ${hours}h ${minutes}m`;
+
+            return {
+                name: row.name,
+                ip: row.ip_address,
+                uptime_formatted: uptimeFormatted,
+                availability: `${finalAvailability}%`,
+                period: `${queryStart.toLocaleDateString('pt-BR')} a ${queryEnd.toLocaleDateString('pt-BR')}`
+            };
+        });
+
+        res.json({ success: true, data: reportData });
+
+    } catch (error) {
+        console.error('Erro ao gerar relatório de uptime:', error);
+        res.status(500).json({ message: 'Erro interno ao gerar relatório.' });
+    }
+};
+
 module.exports = {
   getRoutersStatus, // Exporta a nova função
   getAllRouters,
   getRouterReport, // [NOVO] Exporta a função de relatório
+  getRouterUptimeReport, // [NOVO] Exporta a nova função
   updateRouter,
   deleteRouter,
   deleteRouterPermanently, // Exporta a nova função

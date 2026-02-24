@@ -7,7 +7,7 @@ const router = express.Router();
 console.log('[ROUTERS] Carregando rotas de roteadores...'); // [DEBUG] Confirma carregamento
 
 const verifyToken = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 const routerController = require('../controllers/routerController');
 
 // --- ROTAS DE ROTEADORES INDIVIDUAIS ---
@@ -17,6 +17,9 @@ router.delete('/:id', verifyToken, checkPermission('routers.delete'), routerCont
 
 // [NOVO] Rota para relatório detalhado de roteadores (Disponibilidade e Histórico)
 router.get('/report', verifyToken, checkPermission('routers.read'), routerController.getRouterReport);
+
+// [NOVO] Rota para relatório de Uptime por período (Central de Relatórios)
+router.get('/uptime-report', verifyToken, checkPermission('routers.read'), routerController.getRouterUptimeReport);
 
 // [NOVO] Rota para exclusão permanente de um roteador
 router.delete('/:id/permanent', verifyToken, checkPermission('routers.individual.delete_permanent'), routerController.deleteRouterPermanently);

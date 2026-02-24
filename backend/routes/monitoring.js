@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../connection'); // [MODIFICADO] Usa a pool de conexão do PostgreSQL
 const { queryApi, influxBucket } = require('../services/influxService'); // [NOVO] Importa o serviço centralizado do InfluxDB
-const authMiddleware = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const verifyToken = require('../middlewares/authMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 
 /**
  * @route   GET /api/monitoring/router-status
@@ -23,7 +23,7 @@ router.get('/router-status', /* seuMiddlewareDeAuth, */ async (req, res) => {
  * @access  Private
  * @query   range - O período de tempo (ex: '1h', '6h', '24h', '7d'). Padrão: '1h'.
  */
-router.get('/router/:id/cpu-history', [authMiddleware, checkPermission('routers.dashboard.read')], async (req, res) => {
+router.get('/router/:id/cpu-history', [verifyToken, checkPermission('routers.dashboard.read')], async (req, res) => {
     try {
         const { id } = req.params;
         const range = req.query.range || '1h'; // Padrão de 1 hora se não for especificado
@@ -76,7 +76,7 @@ router.get('/router/:id/cpu-history', [authMiddleware, checkPermission('routers.
  * @access  Private
  * @query   range - O período de tempo (ex: '1h', '6h', '24h', '7d'). Padrão: '24h'.
  */
-router.get('/router/:id/metrics', [authMiddleware, checkPermission('routers.dashboard.read')], async (req, res) => {
+router.get('/router/:id/metrics', [verifyToken, checkPermission('routers.dashboard.read')], async (req, res) => {
     try {
         const { id } = req.params;
         const range = req.query.range || '24h';
@@ -166,7 +166,7 @@ router.get('/router/:id/metrics', [authMiddleware, checkPermission('routers.dash
             })
         ]);
 
-        console.log(`[MONITORING] /metrics (${routerIp}): CPU=${cpuData.length}, Mem=${memoryData.length}, Traf=${trafficData.length} pontos.`);
+        // console.log(`[MONITORING] /metrics (${routerIp}): CPU=${cpuData.length}, Mem=${memoryData.length}, Traf=${trafficData.length} pontos.`);
 
         // Calcular estatísticas
         const calculateStats = (data) => {
@@ -211,11 +211,11 @@ router.get('/router/:id/metrics', [authMiddleware, checkPermission('routers.dash
  * @desc    Busca informações sobre clientes conectados (Wi-Fi, DHCP, Hotspot).
  * @access  Private
  */
-router.get('/router/:id/clients', [authMiddleware, checkPermission('routers.dashboard.clients')], async (req, res) => { // [MODIFICADO]
+router.get('/router/:id/clients', [verifyToken, checkPermission('routers.dashboard.clients')], async (req, res) => { // [MODIFICADO]
     try {
         const reqId = Math.random().toString(36).substring(7);
-        console.time(`[REQ-${reqId}] GET /clients/${req.params.id}`);
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando busca de clientes...`);
+        // console.time(`[REQ-${reqId}] GET /clients/${req.params.id}`);
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando busca de clientes...`);
         const { id } = req.params;
         const { range } = req.query; // [NOVO] Aceita um parâmetro de range
         const queryRange = range || '1h'; // [NOVO] Usa o range fornecido ou '1h' como padrão
@@ -329,11 +329,11 @@ router.get('/router/:id/clients', [authMiddleware, checkPermission('routers.dash
         const wifiCount = wifiClients.length;
         const hotspotCount = hotspotClients.length;
 
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Clientes retornados para ${routerIp}:`, {
-            dhcp: dhcpCount,
-            wifi: wifiCount,
-            hotspot: hotspotCount
-        });
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Clientes retornados para ${routerIp}:`, {
+        //     dhcp: dhcpCount,
+        //     wifi: wifiCount,
+        //     hotspot: hotspotCount
+        // });
 
         res.json({
             success: true,
@@ -358,7 +358,7 @@ router.get('/router/:id/clients', [authMiddleware, checkPermission('routers.dash
                 }
             }
         });
-        console.timeEnd(`[REQ-${reqId}] GET /clients/${req.params.id}`);
+        // console.timeEnd(`[REQ-${reqId}] GET /clients/${req.params.id}`);
 
     } catch (error) {
         console.error(`Erro na rota /api/monitoring/router/${req.params.id}/clients:`, error);
@@ -372,11 +372,11 @@ router.get('/router/:id/clients', [authMiddleware, checkPermission('routers.dash
  * @access  Private
  * @query   range - O período de tempo. Padrão: '24h'.
  */
-router.get('/router/:id/detailed-metrics', [authMiddleware, checkPermission('routers.dashboard.read')], async (req, res) => {
+router.get('/router/:id/detailed-metrics', [verifyToken, checkPermission('routers.dashboard.read')], async (req, res) => {
     try {
         const reqId = Math.random().toString(36).substring(7);
-        console.time(`[REQ-${reqId}] GET /detailed-metrics/${req.params.id}`);
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando métricas detalhadas...`);
+        // console.time(`[REQ-${reqId}] GET /detailed-metrics/${req.params.id}`);
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando métricas detalhadas...`);
         const { id } = req.params;
         const range = req.query.range || '24h';
 
@@ -488,7 +488,7 @@ router.get('/router/:id/detailed-metrics', [authMiddleware, checkPermission('rou
             });
         });
 
-        console.log(`[MONITORING] Interfaces encontradas para ${routerIp}: ${interfaces.join(', ')}`);
+        // console.log(`[MONITORING] Interfaces encontradas para ${routerIp}: ${interfaces.join(', ')}`);
 
         // Buscar dados para cada interface
         const interfaceMetrics = {};
@@ -545,13 +545,13 @@ router.get('/router/:id/detailed-metrics', [authMiddleware, checkPermission('rou
             console.error(`Erro ao buscar uptime atual para ${routerIp}:`, err);
         }
 
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Dados detalhados retornados para ${id}:`, {
-            routerName,
-            routerIp,
-            routerVersion,
-            systemMetrics: { cpu: cpuData.length, memory: memoryData.length, uptime: uptimeData.length },
-            interfaces: Object.keys(interfaceMetrics)
-        });
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Dados detalhados retornados para ${id}:`, {
+        //     routerName,
+        //     routerIp,
+        //     routerVersion,
+        //     systemMetrics: { cpu: cpuData.length, memory: memoryData.length, uptime: uptimeData.length },
+        //     interfaces: Object.keys(interfaceMetrics)
+        // });
 
         res.json({
             success: true,
@@ -569,7 +569,7 @@ router.get('/router/:id/detailed-metrics', [authMiddleware, checkPermission('rou
                 interfaces: interfaceMetrics
             }
         });
-        console.timeEnd(`[REQ-${reqId}] GET /detailed-metrics/${req.params.id}`);
+        // console.timeEnd(`[REQ-${reqId}] GET /detailed-metrics/${req.params.id}`);
     } catch (error) {
         console.error(`Erro na rota /api/monitoring/router/${req.params.id}/detailed-metrics:`, error);
         res.status(500).json({ success: false, message: 'Erro ao buscar métricas detalhadas.' });
@@ -581,7 +581,7 @@ router.get('/router/:id/detailed-metrics', [authMiddleware, checkPermission('rou
  * @desc    Calcula métricas de disponibilidade (uptime %, quedas, status atual).
  * @access  Private
  */
-router.get('/router/:id/availability', [authMiddleware, checkPermission('routers.dashboard.read')], async (req, res) => {
+router.get('/router/:id/availability', [verifyToken, checkPermission('routers.dashboard.read')], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -690,7 +690,7 @@ router.get('/router/:id/availability', [authMiddleware, checkPermission('routers
  * @desc    Busca análises detalhadas sobre clientes Wi-Fi (atuais, 1h, 7d, 30d).
  * @access  Private
  */
-router.get('/router/:id/wifi-analytics', [authMiddleware, checkPermission('routers.dashboard.clients')], async (req, res) => {
+router.get('/router/:id/wifi-analytics', [verifyToken, checkPermission('routers.dashboard.clients')], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -764,7 +764,7 @@ router.get('/router/:id/wifi-analytics', [authMiddleware, checkPermission('route
  * @desc    Busca análises detalhadas sobre clientes DHCP.
  * @access  Private
  */
-router.get('/router/:id/dhcp-analytics', [authMiddleware, checkPermission('routers.dashboard.clients')], async (req, res) => {
+router.get('/router/:id/dhcp-analytics', [verifyToken, checkPermission('routers.dashboard.clients')], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -829,7 +829,7 @@ router.get('/router/:id/dhcp-analytics', [authMiddleware, checkPermission('route
  * @desc    Busca análises detalhadas sobre clientes Hotspot.
  * @access  Private
  */
-router.get('/router/:id/hotspot-analytics', [authMiddleware, checkPermission('routers.dashboard.clients')], async (req, res) => {
+router.get('/router/:id/hotspot-analytics', [verifyToken, checkPermission('routers.dashboard.clients')], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -906,39 +906,108 @@ router.get('/router/:id/hotspot-analytics', [authMiddleware, checkPermission('ro
 });
 
 /**
+ * Calcula a diferença de tempo entre agora e uma data fornecida, retornando uma string formatada.
+ * @param {Date | string} lastSeenDate A data da última vez que foi visto.
+ * @returns {{formatted: string, hours: number}} Objeto com o tempo formatado e o total de horas.
+ */
+const calculateDowntime = (lastSeenDate) => {
+    if (!lastSeenDate) {
+        return { formatted: 'Sem Dados', hours: 0 }; // [MODIFICADO] Exibe 'Sem Dados' se nunca foi visto
+    }
+
+    const now = new Date();
+    const lastSeen = new Date(lastSeenDate);
+    const diffSeconds = Math.floor((now - lastSeen) / 1000);
+
+    if (diffSeconds < 60) {
+        return { formatted: '<1m', hours: 0 };
+    }
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    let formatted;
+    if (diffDays > 0) {
+        formatted = `${diffDays}d ${diffHours % 24}h`;
+    } else if (diffHours > 0) {
+        formatted = `${diffHours}h ${diffMinutes % 60}m`;
+    } else {
+        formatted = `${diffMinutes}m`;
+    }
+    return { formatted, hours: diffHours };
+};
+
+/**
  * @route   GET /api/monitoring/all-routers-status
  * @desc    [NOVO] Busca um resumo do estado atual de todos os roteadores para o dashboard NOC.
  * @access  Private
  */
-router.get('/all-routers-status', [authMiddleware, checkPermission('routers.monitoring.read')], async (req, res) => {
+router.get('/all-routers-status', [verifyToken, checkPermission('routers.monitoring.read')], async (req, res) => {
     try {
         // 1. Buscar todos os roteadores com seus grupos e configurações
-        // [CORRIGIDO] Remove colunas 'default_interface' e 'bandwidth_limit' que não existem na tabela.
-        const routerQuery = await pool.query(`SELECT id, name, ip_address, status FROM routers`);
+        // [MODIFICADO] Adiciona as colunas de credenciais da API para o modal de edição.
+        const routerQuery = await pool.query(`SELECT id, name, ip_address, status, last_seen, group_id, observacao, monitoring_interface, username, api_port, is_maintenance FROM routers`);
         const allRouters = routerQuery.rows;
+
+        // [NOVO] Busca todos os grupos para criar um mapa de ID -> Nome, otimizando a busca do nome do grupo.
+        const groupsQuery = await pool.query('SELECT id, name FROM router_groups');
+        const groupMap = new Map(groupsQuery.rows.map(g => [g.id, g.name]));
 
         if (!allRouters || allRouters.length === 0) {
             return res.json([]);
         }
 
+
         // Pega a lista de IPs dos roteadores que estão ONLINE para otimizar as queries no InfluxDB
         const onlineRouterIPs = allRouters
             .filter(r => r.status === 'online' && r.ip_address)
-            .map(r => r.ip_address);
+            .map(r => r.ip_address.trim());
 
-        let clientCountMap = new Map();
-        let influxInterfacesMap = new Map();
+        // [NOVO] Pega a lista de IPs dos roteadores OFFLINE para buscar a última vez que foram vistos no InfluxDB
+        const offlineRouterIPs = allRouters
+            .filter(r => r.status === 'offline' && r.ip_address)
+            .map(r => r.ip_address.trim());
+
+        let clientCountMap = new Map(); // [CORRIGIDO] Alterado para 'let' para permitir reatribuição
+        const influxInterfacesMap = new Map();
+        const interfaceStatusMap = new Map();
+        const lastSeenPgMap = new Map(); // [NOVO] Para guardar o último timestamp do PostgreSQL para roteadores offline
+        const uptimeMap = new Map(); // [NOVO] Para guardar o uptime dos roteadores online
 
         // 2. Se houver roteadores online, busca dados do InfluxDB (clientes e interfaces) SÓ PARA ELES.
         if (onlineRouterIPs.length > 0) {
-            const ipFilter = onlineRouterIPs.map(ip => `r.router_host == "${ip}"`).join(' or ');
+            // [OTIMIZAÇÃO] Usa a função 'contains' do Flux, que é mais eficiente do que um longo encadeamento de 'or'.
+            // Transforma o array de IPs em uma string de array Flux: `["ip1", "ip2", ...]`
+            const ipFilterArray = JSON.stringify(onlineRouterIPs);
+
+            // [NOVO] Query para status da interface (quedas e última queda)
+            const interfaceStatusQuery = `
+                from(bucket: "${influxBucket}")
+                    |> range(start: -1h) // [OTIMIZAÇÃO] Reduz o range para 1 hora. Como a query usa 'last()', um range menor é suficiente e muito mais rápido.
+                    |> filter(fn: (r) => r._measurement == "interface_stats")
+                    |> filter(fn: (r) => contains(value: r.router_host, set: ${ipFilterArray}))
+                    |> filter(fn: (r) => r._field == "link_downs" or r._field == "last_link_down_time")
+                    |> last() // Pega o valor mais recente para cada interface
+                    |> pivot(rowKey:["router_host", "interface_name"], columnKey: ["_field"], valueColumn: "_value")
+            `;
+
+            // [NOVO] Query para buscar o uptime atual dos roteadores online
+            const uptimeQuery = `
+                from(bucket: "${influxBucket}")
+                    |> range(start: -1h)
+                    |> filter(fn: (r) => r._measurement == "system_resource" and r._field == "uptime_seconds")
+                    |> filter(fn: (r) => contains(value: r.router_host, set: ${ipFilterArray}))
+                    |> last()
+                    |> keep(columns: ["router_host", "_value"])
+            `;
 
             // Query para interfaces
             const interfacesQuery = `
                 from(bucket: "${influxBucket}")
                   |> range(start: -30m)
                   |> filter(fn: (r) => r._measurement == "interface_stats")
-                  |> filter(fn: (r) => ${ipFilter})
+                  |> filter(fn: (r) => contains(value: r.router_host, set: ${ipFilterArray}))
                   |> keep(columns: ["router_host", "interface_name"])
                   |> distinct()
             `;
@@ -948,14 +1017,14 @@ router.get('/all-routers-status', [authMiddleware, checkPermission('routers.moni
                 hotspot_clients = from(bucket: "${influxBucket}")
                     |> range(start: -10m)
                     |> filter(fn: (r) => r._measurement == "hotspot_active" and r._field == "mac_address")
-                    |> filter(fn: (r) => ${ipFilter})
+                    |> filter(fn: (r) => contains(value: r.router_host, set: ${ipFilterArray}))
                     |> group(columns: ["router_host"])
                     |> distinct() |> count() |> set(key: "client_type", value: "hotspot")
     
                 wifi_clients = from(bucket: "${influxBucket}")
                     |> range(start: -10m)
                     |> filter(fn: (r) => r._measurement == "interface_wireless_registration_table" and r._field == "mac_address")
-                    |> filter(fn: (r) => ${ipFilter})
+                    |> filter(fn: (r) => contains(value: r.router_host, set: ${ipFilterArray}))
                     |> group(columns: ["router_host"])
                     |> distinct() |> count() |> set(key: "client_type", value: "wifi")
     
@@ -967,42 +1036,121 @@ router.get('/all-routers-status', [authMiddleware, checkPermission('routers.moni
                     }))
             `;
 
-            // Executar queries em paralelo
-            const [interfaceResults, clientCountResults] = await Promise.all([
-                queryApi.collectRows(interfacesQuery),
-                queryApi.collectRows(clientsQuery)
-            ]);
 
-            // Processar resultados
-            clientCountMap = new Map(clientCountResults.map(r => [r.router_host, r.connected_clients]));
-            interfaceResults.forEach(result => {
-                if (result.interface_name) {
-                    if (!influxInterfacesMap.has(result.router_host)) {
-                        influxInterfacesMap.set(result.router_host, []);
+            // [CORREÇÃO] Envolve a chamada ao InfluxDB em um try-catch para não quebrar a rota inteira em caso de timeout.
+            try {
+                // Executar queries em paralelo
+                const [interfaceResults, clientCountResults, interfaceStatusResults, uptimeResults] = await Promise.all([
+                    queryApi.collectRows(interfacesQuery),
+                    queryApi.collectRows(clientsQuery),
+                    queryApi.collectRows(interfaceStatusQuery),
+                    queryApi.collectRows(uptimeQuery) // [NOVO]
+                ]);
+
+                // Processar resultados
+                clientCountMap = new Map(clientCountResults.map(r => [r.router_host, r.connected_clients]));
+                interfaceResults.forEach(result => {
+                    if (result.interface_name) {
+                        if (!influxInterfacesMap.has(result.router_host)) {
+                            influxInterfacesMap.set(result.router_host, []);
+                        }
+                        influxInterfacesMap.get(result.router_host).push({ name: result.interface_name });
                     }
-                    influxInterfacesMap.get(result.router_host).push({ name: result.interface_name });
-                }
-            });
+                });
+
+                // [NOVO] Processar resultados de status da interface
+                interfaceStatusResults.forEach(result => {
+                    const key = `${result.router_host}|${result.interface_name}`;
+                    interfaceStatusMap.set(key, {
+                        link_downs: result.link_downs,
+                        last_link_down_time: result.last_link_down_time
+                    });
+                });
+
+                // [NOVO] Processar resultados de uptime
+                uptimeResults.forEach(result => {
+                    uptimeMap.set(result.router_host, result._value);
+                });
+            } catch (influxError) {
+                console.warn(`[AVISO] Falha ao buscar dados do InfluxDB na rota all-routers-status. A resposta conterá apenas dados do PostgreSQL. Erro: ${influxError.message}`);
+                // As maps 'clientCountMap' e 'influxInterfacesMap' continuarão vazias, o que é o comportamento esperado.
+            }
+        }
+
+        // [NOVO] Se houver roteadores offline, busca a última coleta deles no PostgreSQL
+        if (offlineRouterIPs.length > 0) {
+            try {
+                const lastSeenQuery = `
+                    SELECT router_host, MAX(collected_at) as last_seen
+                    FROM router_uptime_log
+                    WHERE router_host = ANY($1)
+                    GROUP BY router_host;
+                `;
+                const lastSeenResults = await pool.query(lastSeenQuery, [offlineRouterIPs]);
+                lastSeenResults.rows.forEach(row => {
+                    lastSeenPgMap.set(row.router_host, row.last_seen);
+                });
+            } catch (pgError) {
+                console.warn(`[AVISO] Falha ao buscar último status do PostgreSQL para roteadores offline. Erro: ${pgError.message}`);
+            }
         }
 
         // 3. Combinar todos os dados
         const responseData = allRouters.map(router => {
-            const ip = router.ip_address;
+            const ip = router.ip_address ? router.ip_address.trim() : null;
             const clientCount = clientCountMap.get(ip) || 0;
             const interfaces = influxInterfacesMap.get(ip) || [];
+
+            // [REFEITO] Lógica de cálculo de inatividade para ser mais robusta
+            let downtime = '-';
+            let downtime_alert = false;
+            if (router.status === 'offline' || !router.status) {
+                // [MODIFICADO] Prioriza o último timestamp do log de coletas. Se não existir, usa o do 'routers'.
+                const lastSeen = ip ? lastSeenPgMap.get(ip) : null;
+                const downtimeResult = calculateDowntime(lastSeen || router.last_seen);
+                downtime = downtimeResult.formatted;
+                downtime_alert = downtimeResult.hours >= 24;
+            }
+            
+            // [CORRIGIDO] Busca o nome do grupo a partir do mapa, em vez de retornar null.
+            const groupName = router.group_id ? groupMap.get(router.group_id) : null;
+
+            // [NOVO] Lógica para obter dados da interface monitorada
+            let interfaceStatus = null;
+            if (router.status === 'online' && router.monitoring_interface) {
+                const key = `${ip}|${router.monitoring_interface}`;
+                interfaceStatus = interfaceStatusMap.get(key) || null;
+            }
+
+            // [NOVO] Obtém o uptime se estiver online
+            let uptimeSeconds = null;
+            if (router.status === 'online' && ip) {
+                uptimeSeconds = uptimeMap.get(ip) || null;
+            }
 
             return {
                 id: router.id,
                 name: router.name,
                 ip: ip,
                 status: router.status || 'offline', // Usa o status do PG
-                group_name: null,
+                downtime: downtime, // Agora sempre terá um valor ('-' ou o tempo calculado)
+                group_name: groupName, // [CORRIGIDO] Retorna o nome do grupo correto.
+                group_id: router.group_id, // [NOVO] Retorna o ID do grupo para consistência.
                 latency: null, // Latency não é coletado por este endpoint para manter a velocidade
                 connected_clients: clientCount,
                 interface_traffic: {}, // Deixado para o frontend buscar sob demanda
                 interfaces: interfaces,
                 default_interface: null, // [CORRIGIDO] Coluna não existe, retorna null.
-                bandwidth_limit: null    // [CORRIGIDO] Coluna não existe, retorna null.
+                bandwidth_limit: null,    // [CORRIGIDO] Coluna não existe, retorna null.
+                downtime_alert: downtime_alert, // [NOVO] Flag para o frontend
+                observacao: router.observacao, // [CORRIGIDO] Retorna o campo de observação.
+                link_downs: interfaceStatus ? interfaceStatus.link_downs : null, // [NOVO]
+                last_link_down_time: interfaceStatus ? interfaceStatus.last_link_down_time : null, // [NOVO]
+                monitoring_interface: router.monitoring_interface, // Adiciona para o modal de edição
+                username: router.username, // [NOVO] Adiciona para o modal de edição
+                api_port: router.api_port,  // [NOVO] Adiciona para o modal de edição
+                uptime_seconds: uptimeSeconds, // [NOVO] Envia o uptime para o frontend
+                is_maintenance: router.is_maintenance // [NOVO] Envia o status de manutenção para exibir corretamente na tabela
             };
         });
 
@@ -1021,7 +1169,7 @@ router.get('/all-routers-status', [authMiddleware, checkPermission('routers.moni
  * @query   interface - O nome da interface (obrigatório).
  * @query   range - O período de tempo (ex: '15m', '1h'). Padrão: '15m'.
  */
-router.get('/router/:id/interface-traffic', [authMiddleware, checkPermission('routers.dashboard.interfaces')], async (req, res) => {
+router.get('/router/:id/interface-traffic', [verifyToken, checkPermission('routers.dashboard.interfaces')], async (req, res) => {
     try {
         const { id } = req.params;
         const { interface: interfaceName, range = '15m' } = req.query;
@@ -1062,7 +1210,7 @@ router.get('/router/:id/interface-traffic', [authMiddleware, checkPermission('ro
             });
         });
 
-        console.log(`[MONITORING-DEBUG] /interface-traffic: Dados brutos do InfluxDB para ${interfaceName}:`, JSON.stringify(data, null, 2));
+        // console.log(`[MONITORING-DEBUG] /interface-traffic: Dados brutos do InfluxDB para ${interfaceName}:`, JSON.stringify(data, null, 2));
 
         res.json({ success: true, data });
     } catch (error) {
@@ -1076,11 +1224,11 @@ router.get('/router/:id/interface-traffic', [authMiddleware, checkPermission('ro
  * @desc    [NOVO] Busca um resumo de métricas em tempo real para um roteador (CPU, Memória, Clientes). Otimizado para chamadas frequentes.
  * @access  Private
  */
-router.get('/router/:id/live-summary', [authMiddleware, checkPermission('routers.dashboard.read')], async (req, res) => {
+router.get('/router/:id/live-summary', [verifyToken, checkPermission('routers.dashboard.read')], async (req, res) => {
     try {
         const reqId = Math.random().toString(36).substring(7);
-        console.time(`[REQ-${reqId}] GET /live-summary/${req.params.id}`);
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando live summary...`);
+        // console.time(`[REQ-${reqId}] GET /live-summary/${req.params.id}`);
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Iniciando live summary...`);
         const { id } = req.params;
 
         // 1. Buscar o IP do roteador no PostgreSQL
@@ -1147,11 +1295,11 @@ router.get('/router/:id/live-summary', [authMiddleware, checkPermission('routers
             }
         }
 
-        console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Live Summary para ${routerIp}:`, {
-            cpu: cpuLoad,
-            memory: memoryUsage,
-            clients: connected_clients
-        });
+        // console.log(`[${new Date().toISOString()}] [REQ-${reqId}] Live Summary para ${routerIp}:`, {
+        //     cpu: cpuLoad,
+        //     memory: memoryUsage,
+        //     clients: connected_clients
+        // });
 
         res.json({
             success: true,
@@ -1161,7 +1309,7 @@ router.get('/router/:id/live-summary', [authMiddleware, checkPermission('routers
                 clients: connected_clients
             }
         });
-        console.timeEnd(`[REQ-${reqId}] GET /live-summary/${req.params.id}`);
+        // console.timeEnd(`[REQ-${reqId}] GET /live-summary/${req.params.id}`);
 
     } catch (error) {
         console.error(`Erro na rota /live-summary para o roteador ${req.params.id}:`, error);

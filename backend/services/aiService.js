@@ -80,7 +80,7 @@ const generateChatResponse = async (ticketTitle, historyMessages) => {
         return null; // Serviço desativado
     }
 
-    console.log(`🤖 [AI-SERVICE] A gerar resposta de chat para o ticket: "${ticketTitle}"`);
+    // console.log(`🤖 [AI-SERVICE] A gerar resposta de chat para o ticket: "${ticketTitle}"`);
 
     // Converte mensagens do DB para o formato do Gemini
     // user_id NULL = IA (model), user_id NUM = Usuário (user)
@@ -117,7 +117,7 @@ const generateChatResponse = async (ticketTitle, historyMessages) => {
         const result = await chat.sendMessage(lastUserMessage);
         const response = await result.response;
         const text = response.text();
-        console.log('✅ [AI-SERVICE] Resposta gerada com sucesso.');
+        // console.log('✅ [AI-SERVICE] Resposta gerada com sucesso.');
         return text;
     } catch (error) {
         // [MELHORIA] Loga o objeto de erro completo para obter mais detalhes sobre

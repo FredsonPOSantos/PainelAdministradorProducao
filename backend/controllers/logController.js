@@ -142,5 +142,70 @@ const getOfflineErrorLog = async (req, res) => {
     }
 };
 
+/**
+ * [NOVO] Lista os arquivos de relatório de uptime arquivados.
+ */
+const listArchivedReports = async (req, res) => {
+    const archiveDir = path.join(__dirname, '../../logs/archives');
+    try {
+        if (!fs.existsSync(archiveDir)) {
+            return res.json({ success: true, data: [] });
+        }
+        const files = fs.readdirSync(archiveDir).filter(f => f.endsWith('.json'));
+        
+        const fileStats = files.map(file => {
+            const stat = fs.statSync(path.join(archiveDir, file));
+            return {
+                name: file,
+                size: (stat.size / 1024).toFixed(2) + ' KB',
+                created_at: stat.birthtime
+            };
+        });
+        
+        res.json({ success: true, data: fileStats });
+    } catch (error) {
+        console.error('Erro ao listar arquivos:', error);
+        res.status(500).json({ message: 'Erro ao listar relatórios arquivados.' });
+    }
+};
 
-module.exports = { getAuditLogs, getSystemLogs, getOfflineErrorLog };
+/**
+ * [NOVO] Baixa um relatório específico.
+ */
+const downloadArchivedReport = async (req, res) => {
+    const { filename } = req.params;
+    // Segurança básica para evitar Directory Traversal
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(__dirname, '../../logs/archives', safeFilename);
+
+    if (fs.existsSync(filePath)) {
+        res.download(filePath);
+    } else {
+        res.status(404).json({ message: 'Arquivo não encontrado.' });
+    }
+};
+
+/**
+ * [NOVO] Exclui um relatório arquivado.
+ */
+const deleteArchivedReport = async (req, res) => {
+    const { filename } = req.params;
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(__dirname, '../../logs/archives', safeFilename);
+
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        res.json({ success: true, message: 'Arquivo de relatório excluído com sucesso.' });
+    } else {
+        res.status(404).json({ message: 'Arquivo não encontrado.' });
+    }
+};
+
+module.exports = { 
+    getAuditLogs, 
+    getSystemLogs, 
+    getOfflineErrorLog,
+    listArchivedReports,    // [NOVO]
+    downloadArchivedReport,  // [NOVO]
+    deleteArchivedReport    // [NOVO]
+};

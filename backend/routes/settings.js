@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 
 const verifyToken = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 const logoUploadMiddleware = require('../middlewares/logoUploadMiddleware');
 // const backgroundUploadMiddleware = require('../middlewares/backgroundUploadMiddleware');
 // const loginLogoUploadMiddleware = require('../middlewares/loginLogoUploadMiddleware');

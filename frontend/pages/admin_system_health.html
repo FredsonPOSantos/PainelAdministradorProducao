@@ -1,4 +1,7 @@
 <!-- Ficheiro: frontend/pages/admin_system_health.html -->
+<!-- [NOVO] Carrega os estilos de monitoramento para os cartões de servidor -->
+<link rel="stylesheet" href="/css/monitoring_styles.css">
+
 <div class="page-header">
     <h3>Saúde do Sistema</h3>
     <button class="btn-secondary" onclick="window.loadPage('admin_system_health')">
@@ -79,6 +82,15 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Container para Servidores Remotos -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #4a5568; padding-bottom: 10px;">
+    <h3 class="section-title" style="margin: 0; border: none; padding: 0;">Outros Servidores (Infraestrutura)</h3>
+    <button id="checkRemoteServersBtn" class="btn-secondary" style="font-size: 0.9rem; padding: 5px 15px;"><i class="fas fa-network-wired"></i> Verificar Conexão</button>
+</div>
+<div id="remoteServersContainer">
+    <!-- Os cartões serão injetados aqui via JavaScript -->
 </div>
 
 <!-- Recent Errors -->

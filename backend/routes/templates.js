@@ -4,8 +4,8 @@
 const express = require('express');
 const router = express.Router();
 const templateController = require('../controllers/templateController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const checkPermission = require('../middlewares/roleMiddleware');
+const verifyToken = require('../middlewares/authMiddleware');
+const { checkPermission } = require('../middlewares/permissionMiddleware');
 const uploadMiddlewareHotspot = require('../middlewares/uploadMiddlewareHotspot'); // 1. Importar o novo middleware
 
 // --- Rotas para Templates ---
@@ -13,14 +13,14 @@ const uploadMiddlewareHotspot = require('../middlewares/uploadMiddlewareHotspot'
 // Criar um novo template
 router.post(
   '/',
-  [authMiddleware, checkPermission('templates.create'), uploadMiddlewareHotspot], // 2. Aplicar o middleware
+  [verifyToken, checkPermission('templates.create'), uploadMiddlewareHotspot], // 2. Aplicar o middleware
   templateController.createTemplate
 );
 
 // Listar todos os templates
 router.get(
   '/',
-  [authMiddleware, checkPermission('templates.read')],
+  [verifyToken, checkPermission('templates.read')],
   templateController.getAllTemplates
 );
 
@@ -30,14 +30,14 @@ router.get(
 // antes de chegar ao controller, pois o frontend envia o campo _method='PUT'.
 router.post(
   '/:id',
-  [authMiddleware, checkPermission('templates.update'), uploadMiddlewareHotspot],
+  [verifyToken, checkPermission('templates.update'), uploadMiddlewareHotspot],
   templateController.updateTemplate
 );
 
 // Eliminar um template
 router.delete(
   '/:id',
-  [authMiddleware, checkPermission('templates.delete')],
+  [verifyToken, checkPermission('templates.delete')],
   templateController.deleteTemplate
 );
 
