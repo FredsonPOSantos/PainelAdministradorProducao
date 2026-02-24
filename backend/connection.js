@@ -156,6 +156,7 @@ async function checkAndUpgradeSchema(client) {
                 reset_token_expires TIMESTAMP,
                 avatar_url VARCHAR(255),
                 theme_preference VARCHAR(50) DEFAULT 'default',
+                theme_preference VARCHAR(50) DEFAULT 'vscode',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -208,6 +209,9 @@ async function checkAndUpgradeSchema(client) {
             await client.query('ALTER TABLE admin_users ADD CONSTRAINT admin_users_role_fkey FOREIGN KEY (role) REFERENCES roles(slug) ON UPDATE CASCADE ON DELETE RESTRICT;');
             console.log("   ✅ Chave estrangeira 'admin_users_role_fkey' adicionada.");
         }
+
+        // [NOVO] Atualiza o tema padrão para 'vscode' para novos utilizadores
+        await client.query("ALTER TABLE admin_users ALTER COLUMN theme_preference SET DEFAULT 'vscode'");
     }
 
     // [NOVO] Tabela para permissões individuais de utilizadores (Overrides)
