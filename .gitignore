@@ -10,3 +10,6 @@ npm-debug.log
 backend/.env
 
 ecosystem.config.js
+
+# Dumps de banco de dados grandes
+backend/db_dump_*.json
