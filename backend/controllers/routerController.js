@@ -1029,6 +1029,7 @@ const getDhcpLeases = async (req, res) => {
         }
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 60 });
+        client.setMaxListeners(20); // [CORREÇÃO] Aumenta limite para evitar warnings em concorrência
 
         // [CORRIGIDO] Adiciona tratamento de erro e limpeza de listener para evitar memory leak
         const leases = await new Promise(async (resolve, reject) => {
@@ -1044,6 +1045,7 @@ const getDhcpLeases = async (req, res) => {
             } finally {
                 // Garante que o listener seja removido e a conexão fechada
                 client.removeListener('error', errorHandler);
+                client.removeAllListeners(); // [CORREÇÃO] Limpeza agressiva
                 client.close();
             }
         });
@@ -1089,6 +1091,7 @@ const getWifiClients = async (req, res) => {
         if (!RouterOSClient) throw new Error("A biblioteca de conexão com o MikroTik (node-routeros) não pôde ser carregada.");
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 20 });
+        client.setMaxListeners(20); // [CORREÇÃO]
 
         // [CORREÇÃO] Adiciona tratamento de erro para evitar crash do servidor
         const clients = await new Promise(async (resolve, reject) => {
@@ -1134,6 +1137,7 @@ const getWifiClients = async (req, res) => {
             } finally {
                 // [CRÍTICO] Garante que o ouvinte de erro seja sempre removido para evitar memory leaks.
                 client.removeListener('error', errorHandler);
+                client.removeAllListeners(); // [CORREÇÃO]
                 client.close();
             }
         });
@@ -1175,6 +1179,7 @@ const getHotspotActive = async (req, res) => {
         if (!RouterOSClient) throw new Error("A biblioteca de conexão com o MikroTik (node-routeros) não pôde ser carregada.");
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 60 });
+        client.setMaxListeners(20); // [CORREÇÃO]
 
         // [CORREÇÃO] Adiciona tratamento de erro para evitar crash do servidor
         const activeUsers = await new Promise(async (resolve, reject) => {
@@ -1186,6 +1191,7 @@ const getHotspotActive = async (req, res) => {
             } catch (err) {
                 reject(err);
             } finally {
+                client.removeAllListeners(); // [CORREÇÃO]
                 client.close();
             }
         });
@@ -1221,6 +1227,7 @@ const kickClient = async (req, res) => {
         const { ip_address, api_port } = routerResult.rows[0];
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 45 });
+        client.setMaxListeners(20); // [CORREÇÃO]
         
         // [CORREÇÃO] Adiciona tratamento de erro para evitar crash do servidor
         await new Promise(async (resolve, reject) => {
@@ -1246,6 +1253,7 @@ const kickClient = async (req, res) => {
             } catch (err) {
                 reject(err);
             } finally {
+                client.removeAllListeners(); // [CORREÇÃO]
                 client.close();
             }
         });
@@ -1279,6 +1287,7 @@ const runDiagnostics = async (req, res) => {
         const { ip_address, api_port } = routerResult.rows[0];
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 90 });
+        client.setMaxListeners(20); // [CORREÇÃO]
         
         // [CORREÇÃO] Adiciona tratamento de erro para evitar crash do servidor
         const result = await new Promise(async (resolve, reject) => {
@@ -1299,6 +1308,7 @@ const runDiagnostics = async (req, res) => {
             } catch (err) {
                 reject(err);
             } finally {
+                client.removeAllListeners(); // [CORREÇÃO]
                 client.close();
             }
         });
@@ -1327,6 +1337,7 @@ const getHardwareHealth = async (req, res) => {
         const { ip_address, api_port } = routerResult.rows[0];
 
         const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 45 });
+        client.setMaxListeners(20); // [CORREÇÃO]
         
         // [CORREÇÃO] Adiciona tratamento de erro para evitar crash do servidor
         const health = await new Promise(async (resolve, reject) => {
@@ -1338,6 +1349,7 @@ const getHardwareHealth = async (req, res) => {
             } catch (err) {
                 reject(err);
             } finally {
+                client.removeAllListeners(); // [CORREÇÃO]
                 client.close();
             }
         });
@@ -1379,6 +1391,7 @@ const manageBackups = async (req, res) => {
             keepalive: false, 
             timeout: 120 
         });
+        client.setMaxListeners(20); // [CORREÇÃO]
         
         // [NOVO] Adiciona um handler de erro para o cliente.
         // Isso é crucial para capturar erros de protocolo ou conexão que não são
@@ -1438,11 +1451,13 @@ const manageBackups = async (req, res) => {
             responseMessage = 'Backup excluído.';
         }
 
+        client.removeAllListeners(); // [CORREÇÃO]
         client.close();
         res.json({ success: true, message: responseMessage, data: responseData });
 
     } catch (error) {
         if (client) {
+            try { client.removeAllListeners(); } catch (e) {} // [CORREÇÃO]
             try { client.close(); } catch (e) { /* Ignora erro ao fechar */ }
         }
 

@@ -293,6 +293,7 @@ const startPeriodicRouterCheck = () => {
                     if (newStatus === 'online' && router.monitoring_interface && router.username && router.password && RouterOSClient) {
                         try {
                             const apiClient = new RouterOSClient({ host: router.ip_address, user: router.username, password: router.password, port: router.api_port || 8728, timeout: 5 });
+                            apiClient.setMaxListeners(20); // [CORREÇÃO]
                             await apiClient.connect();
                             const interfaceStatus = await apiClient.write('/interface/print', [`?name=${router.monitoring_interface}`]);
                             apiClient.close();

@@ -378,6 +378,7 @@ const collectMetrics = async (host) => {
         timeout: 30, // [AUMENTADO] Timeout de conexão aumentado para 30s para redes lentas
         keepalive: false
     });
+    client.setMaxListeners(20); // [CORREÇÃO] Previne aviso de MaxListeners em coletas intensas
 
     // [CORREÇÃO] Adiciona listener para erros de conexão (evita o crash "Unhandled 'error' event")
     client.on('error', (err) => {
@@ -564,12 +565,14 @@ const collectMetrics = async (host) => {
         }
 
         // Desconectar
+        client.removeAllListeners(); // [CORREÇÃO] Limpeza
         await client.close();
         // console.log(`[${new Date().toISOString()}] [AGENT] ✅ Coleta finalizada para ${host}.`);
         return true; // Sucesso
     } catch (err) {
         logToDB('ERROR', `Falha na coleta: ${err.message}`, host);
         try { 
+            client.removeAllListeners(); // [CORREÇÃO] Limpeza
             await client.close(); 
         } catch (_) {
             // Ignora erros de fechamento
