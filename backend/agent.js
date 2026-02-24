@@ -5,7 +5,7 @@ const path = require('path');
 // [SEGURANÇA] Carrega o .env se existir, permitindo o uso de credenciais seguras em produção.
 const envPath = path.resolve(__dirname, '../.env');
 if (require('fs').existsSync(envPath)) {
-    console.log('[AGENT] Carregando variáveis de ambiente de:', envPath);
+    // ...existing code...
     dotenv.config({ path: envPath });
 }
 
@@ -77,7 +77,7 @@ if (!MIKROTIK_USER || !MIKROTIK_PASSWORD) {
 // --- 2. Cliente InfluxDB ---
 const influxDB = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
 const writeApi = influxDB.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
-console.log(`[INFLUXDB] Cliente configurado para o bucket: ${INFLUX_BUCKET}`);
+// ...existing code...
 
 // --- 3. Utilitários ---
 const sanitizeKey = (k) => String(k).replace(/[^a-zA-Z0-9_]/g,'_').replace(/^_+|_+$/g,'').toLowerCase();
@@ -645,7 +645,7 @@ const runMonitoringCycle = async () => {
 
 // Limpeza de recursos
 const cleanup = () => {
-    console.log('[AGENTE] Encerrando...');
+    // ...existing code...
     if (pgPool) {
         pgPool.end();
     }
@@ -657,8 +657,7 @@ const startAgent = async () => {
     await initLogTable(); // Garante que a tabela de logs existe antes de começar
 
     const intervalSeconds = 30;
-    console.log(`[AGENTE] Iniciado. Ciclo a cada ${intervalSeconds} segundos.`);
-    console.warn(`[AGENTE-DEBUG] Coleta de ARP está desativada. Coleta de DHCP está ATIVADA.`);
+    // ...existing code...
     
     // Executar imediatamente
     runMonitoringCycle();
