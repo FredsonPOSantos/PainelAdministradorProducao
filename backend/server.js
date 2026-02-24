@@ -13,8 +13,12 @@ const path = require('path');
 const fs = require('fs');
 
 // [SEGURANÇA] Carrega o ficheiro .env se existir, independentemente do ambiente.
-// Isso permite migrar credenciais sensíveis do ecosystem.config.js para um arquivo .env não versionado.
-const envPath = path.resolve(__dirname, '../.env');
+// Verifica primeiro na pasta atual (backend), depois na raiz.
+let envPath = path.resolve(__dirname, '.env');
+if (!fs.existsSync(envPath)) {
+    envPath = path.resolve(__dirname, '../.env');
+}
+
 if (fs.existsSync(envPath)) {
     console.log('[SERVER] Carregando variáveis de ambiente de:', envPath);
     require('dotenv').config({ path: envPath });

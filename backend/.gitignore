@@ -1,3 +1,4 @@
 .env
 backend\.env
 ecosystem.config.js
+backend/db_dump_*.json

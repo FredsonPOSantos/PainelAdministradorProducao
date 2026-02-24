@@ -1,11 +1,16 @@
 // Carrega as variáveis de ambiente do ficheiro .env
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 // [SEGURANÇA] Carrega o .env se existir, permitindo o uso de credenciais seguras em produção.
-const envPath = path.resolve(__dirname, '../.env');
-if (require('fs').existsSync(envPath)) {
-    // ...existing code...
+// Verifica primeiro na pasta atual (backend), depois na raiz.
+let envPath = path.resolve(__dirname, '.env');
+if (!fs.existsSync(envPath)) {
+    envPath = path.resolve(__dirname, '../.env');
+}
+
+if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
 }
 
