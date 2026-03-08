@@ -1,3 +1,5 @@
+# Ignorar dumps de banco de dados
+backend/db_dump_*.json
 # Ignorar chaves SSH
 srvadm.key
 srvadm.pub
@@ -21,3 +23,5 @@ backend/db_dump_*.json
 
 
 srvadm.key
+
+bfg-1.15.0.jar
