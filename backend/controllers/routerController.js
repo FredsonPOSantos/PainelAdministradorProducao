@@ -1,9 +1,13 @@
+// Patch para adicionar campo last_seen_manual na tabela routers
+// Execute no banco:
+// ALTER TABLE routers ADD COLUMN last_seen_manual TIMESTAMPTZ;
 // Ficheiro: controllers/routerController.js
 const { pool } = require('../connection'); // [MODIFICADO] Importa apenas a pool
 const ping = require('ping');
 const { logAction } = require('../services/auditLogService');
 // [NOVO] Importa o serviço centralizado do InfluxDB
 const { queryApi, influxBucket } = require('../services/influxService');
+const { checkSnmpStatus } = require('../services/snmpService'); // [NOVO]
 
 // [REVERTIDO] Volta a usar node-routeros para melhor compatibilidade de autenticação
 let RouterOSClient;
@@ -23,7 +27,7 @@ const getAllRouters = async (req, res) => {
   // A nova rota /status é usada para a página de monitoramento.
   try {
     // [MODIFICADO] Inclui os novos campos de monitoramento e inatividade
-    const allRouters = await pool.query('SELECT id, name, status, observacao, group_id, ip_address, is_maintenance, monitoring_interface, status_changed_at FROM routers ORDER BY name ASC');
+    const allRouters = await pool.query('SELECT id, name, status, observacao, group_id, ip_address, is_maintenance, monitoring_interface, status_changed_at, last_seen FROM routers ORDER BY name ASC');
     res.json(allRouters.rows);
   } catch (error) {
     console.error('Erro ao listar roteadores:', error);
@@ -113,8 +117,8 @@ const getRoutersStatus = async (req, res) => {
                 r.name,
                 r.ip_address AS ip,
                 r.status,
-                -- r.latency, -- [REMOVIDO] Ignora banco, vamos calcular em tempo real
-                r.is_maintenance, -- [NOVO]
+                r.last_seen_manual,
+                r.is_maintenance,
                 rg.name AS group_name
             FROM routers r
             LEFT JOIN router_groups rg ON r.group_id = rg.id
@@ -143,11 +147,11 @@ const getRoutersStatus = async (req, res) => {
                 let totalLatency = 0;
                 let successCount = 0;
                 
-                // Executa 3 pings sequenciais para este roteador
-                for (let i = 0; i < 3; i++) {
+                // [MODIFICADO] Executa 4 pings sequenciais (Padrão assertivo: 3/4 ou 1/4 sucesso = online)
+                for (let i = 0; i < 4; i++) {
                     try {
-                        // Timeout curto (1s) para não travar muito se estiver offline
-                        const res = await ping.promise.probe(cleanIp, { timeout: 1, min_reply: 1 });
+                        // Timeout aumentado para 2s para evitar falsos negativos em redes lentas
+                        const res = await ping.promise.probe(cleanIp, { timeout: 2, min_reply: 1 });
                         if (res.alive) {
                             const val = typeof res.time === 'number' ? res.time : parseFloat(res.avg);
                             if (!isNaN(val)) {
@@ -286,15 +290,17 @@ const getRoutersStatus = async (req, res) => {
                 }
             }
 
+            // Não atualiza last_seen no banco!
             return {
                 ...router,
-                latency: latency !== undefined ? latency : null, // Garante que latency seja enviado
+                latency: latency !== undefined ? latency : null,
                 connected_clients,
-                interface_traffic, // Objeto com tráfego por interface
-                interfaces: interfaces.length > 0 ? interfaces : [], // Lista real de interfaces
-                default_interface: default_interface, // [NOVO] Sugestão de interface padrão
-                bandwidth_limit: 10000000, // Limite simulado (10 Mbps)
-                routerVersion: routerVersion // [NOVO] Adiciona a versão ao objeto de resposta
+                interface_traffic,
+                interfaces: interfaces.length > 0 ? interfaces : [],
+                default_interface: default_interface,
+                bandwidth_limit: 10000000,
+                routerVersion: routerVersion,
+                last_seen_manual: router.last_seen_manual // Para exibir no dashboard
             };
         }));
 
@@ -330,7 +336,7 @@ const getRoutersStatus = async (req, res) => {
 
 const updateRouter = async (req, res) => {
     const { id } = req.params;
-    const { observacao, ip_address, is_maintenance, monitoring_interface, username, password, api_port } = req.body; 
+    const { observacao, ip_address, is_maintenance, monitoring_interface, username, password, api_port, snmp_community } = req.body; 
 
     const fields = [];
     const values = [];
@@ -373,6 +379,11 @@ const updateRouter = async (req, res) => {
         const portValue = api_port ? parseInt(api_port, 10) : null;
         fields.push(`api_port = $${queryIndex++}`);
         values.push(isNaN(portValue) ? null : portValue);
+    }
+
+    if (snmp_community !== undefined) {
+        fields.push(`snmp_community = $${queryIndex++}`);
+        values.push(snmp_community);
     }
 
     if (fields.length === 0) {
@@ -525,7 +536,8 @@ const checkRouterStatus = async (req, res) => {
     const { id } = req.params;
     const { period } = req.body; // ex: '24h', '7d', '30d'
     try {
-        const routerResult = await pool.query('SELECT ip_address, status, is_maintenance FROM routers WHERE id = $1', [id]);
+        // [CORREÇÃO] Adiciona last_seen e snmp_community à query para uso nos fallbacks
+        const routerResult = await pool.query('SELECT ip_address, status, is_maintenance, last_seen, last_seen_manual, snmp_community, status_changed_at FROM routers WHERE id = $1', [id]);
         if (routerResult.rowCount === 0) {
             return res.status(404).json({ message: 'Roteador não encontrado.' });
         }
@@ -537,38 +549,46 @@ const checkRouterStatus = async (req, res) => {
             const finalState = { status: 'offline', latency: null, status_changed_at: router.status_changed_at, availability: null };
             return res.json(finalState);
         }
-        const pingResult = await ping.promise.probe(ip, { timeout: 2 });
-        const newStatus = pingResult.alive ? 'online' : 'offline';
-        // [NOVO] Captura a latência se estiver vivo
-        const latency = pingResult.alive && typeof pingResult.time === 'number' ? Math.round(pingResult.time) : null;
-
-        let updateQuery;
-        const queryParams = [newStatus, latency, id];
         
+        // [MODIFICADO] Lógica de Ping Assertiva (4 tentativas)
+        let newStatus = 'offline';
+        let totalLatency = 0;
+        let successCount = 0;
+
+        for (let i = 0; i < 4; i++) {
+            try {
+                const res = await ping.promise.probe(ip, { timeout: 2 }); // 2s timeout por ping
+                if (res.alive) {
+                    totalLatency += (typeof res.time === 'number' ? res.time : parseFloat(res.avg));
+                    successCount++;
+                }
+            } catch (e) {}
+        }
+
+        if (successCount > 0) {
+            newStatus = 'online';
+        }
+        const latency = successCount > 0 ? Math.round(totalLatency / successCount) : null;
+
         // [CORREÇÃO] Se estiver em manutenção, NÃO atualiza o status no banco de dados.
         // O estado de manutenção é crítico e manual, não deve ser sobrescrito por automação.
         if (!router.is_maintenance) {
             if (newStatus === 'online') {
+                // Atualiza status, latência, last_seen e last_seen_manual (apenas manual)
                 if (router.status !== 'online') {
-                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), status_changed_at = NOW() WHERE id = $3';
+                    await pool.query('UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), last_seen_manual = NOW(), status_changed_at = NOW() WHERE id = $3', [newStatus, latency, id]);
                 } else {
-                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, last_seen = NOW() WHERE id = $3';
+                    await pool.query('UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), last_seen_manual = NOW() WHERE id = $3', [newStatus, latency, id]);
                 }
             } else {
                 if (router.status !== 'offline') {
-                    updateQuery = 'UPDATE routers SET status = $1, latency = $2, status_changed_at = NOW() WHERE id = $3';
-                } else {
-                    // Se já estava offline, não atualiza o banco para preservar o 'status_changed_at' original.
-                    updateQuery = null;
+                    await pool.query('UPDATE routers SET status = $1, latency = $2, status_changed_at = NOW() WHERE id = $3', [newStatus, latency, id]);
                 }
-            }
-            if (updateQuery) {
-                await pool.query(updateQuery, queryParams);
             }
         }
 
         // Re-fetch para obter o estado mais recente, incluindo o status_changed_at
-        const finalStateResult = await pool.query('SELECT status, latency, status_changed_at, is_maintenance FROM routers WHERE id = $1', [id]);
+        const finalStateResult = await pool.query('SELECT status, latency, status_changed_at, is_maintenance, last_seen, last_seen_manual FROM routers WHERE id = $1', [id]);
         const finalState = { ...finalStateResult.rows[0] };
 
         // Se estiver online, busca o uptime e a disponibilidade
@@ -670,6 +690,14 @@ const rebootRouter = async (req, res) => {
         });
 
         client.on('error', (err) => console.error(`[ROUTER-CMD] Erro no cliente (Reboot): ${err.message}`));
+        client.on('error', (err) => {
+            const msg = err.message || String(err);
+            if (msg.includes('Tried to process unknown reply') || msg.includes('!empty') || err.errno === 'UNKNOWNREPLY') {
+                console.warn('[SISTEMA] Resposta !empty ignorada (node-routeros)');
+                return;
+            }
+            console.error(`[ROUTER-CMD] Erro no cliente (Reboot): ${msg}`);
+        });
 
         try {
             await client.connect();

@@ -388,8 +388,9 @@ const collectMetrics = async (host) => {
     // [CORREÇÃO] Adiciona listener para erros de conexão (evita o crash "Unhandled 'error' event")
     client.on('error', (err) => {
         const msg = err.message || String(err);
-        if (msg.includes('Tried to process unknown reply') || msg.includes('!empty')) {
+        if (msg.includes('Tried to process unknown reply') || msg.includes('!empty') || err.errno === 'UNKNOWNREPLY') {
             // Ignora erros de protocolo conhecidos para não poluir o log
+            console.warn('[SISTEMA] Resposta !empty ignorada (node-routeros)');
             return;
         }
         logToDB('ERROR', `Erro de conexão (Socket): ${msg}`, host);
@@ -570,15 +571,15 @@ const collectMetrics = async (host) => {
         }
 
         // Desconectar
-        client.removeAllListeners(); // [CORREÇÃO] Limpeza
         await client.close();
+        client.removeAllListeners(); // [CORREÇÃO] Limpeza após fechar para garantir que erros no close sejam tratados
         // console.log(`[${new Date().toISOString()}] [AGENT] ✅ Coleta finalizada para ${host}.`);
         return true; // Sucesso
     } catch (err) {
         logToDB('ERROR', `Falha na coleta: ${err.message}`, host);
         try { 
-            client.removeAllListeners(); // [CORREÇÃO] Limpeza
             await client.close(); 
+            client.removeAllListeners(); // [CORREÇÃO] Limpeza após fechar
         } catch (_) {
             // Ignora erros de fechamento
         }
@@ -632,6 +633,16 @@ const runMonitoringCycle = async () => {
                 await client.query('BEGIN');
                 for (const host of successfulHosts) {
                     await client.query('INSERT INTO router_uptime_log (router_host, collected_at) VALUES ($1, NOW())', [host]);
+                    
+                    // [NOVO] Atualiza a tabela routers para refletir que o agente conseguiu conectar.
+                    // Define last_seen = AGORA.
+                    // Define status = 'online' APENAS se não estiver em manutenção.
+                    await client.query(`
+                        UPDATE routers 
+                        SET last_seen = NOW(), 
+                            status = CASE WHEN is_maintenance = FALSE THEN 'online' ELSE status END 
+                        WHERE ip_address = $1
+                    `, [host]);
                 }
                 await client.query('COMMIT');
                 // console.log(`[${new Date().toISOString()}] ✅ Enviado com sucesso (Postgres).`);

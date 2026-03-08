@@ -947,7 +947,7 @@ router.get('/all-routers-status', [verifyToken, checkPermission('routers.monitor
     try {
         // 1. Buscar todos os roteadores com seus grupos e configurações
         // [MODIFICADO] Adiciona as colunas de credenciais da API para o modal de edição.
-        const routerQuery = await pool.query(`SELECT id, name, ip_address, status, last_seen, group_id, observacao, monitoring_interface, username, api_port, is_maintenance FROM routers`);
+        const routerQuery = await pool.query(`SELECT id, name, ip_address, status, last_seen, last_seen_manual, group_id, observacao, monitoring_interface, username, api_port, is_maintenance FROM routers`);
         const allRouters = routerQuery.rows;
 
         // [NOVO] Busca todos os grupos para criar um mapa de ID -> Nome, otimizando a busca do nome do grupo.
@@ -1104,10 +1104,16 @@ router.get('/all-routers-status', [verifyToken, checkPermission('routers.monitor
             // [REFEITO] Lógica de cálculo de inatividade para ser mais robusta
             let downtime = '-';
             let downtime_alert = false;
+            
+            // [NOVO] Determina o last_seen mais recente entre a tabela routers e o log de uptime (Agente)
+            const lastSeenLog = ip ? lastSeenPgMap.get(ip) : null;
+            let effectiveLastSeen = router.last_seen;
+            if (lastSeenLog && (!router.last_seen || new Date(lastSeenLog) > new Date(router.last_seen))) {
+                effectiveLastSeen = lastSeenLog;
+            }
+
             if (router.status === 'offline' || !router.status) {
-                // [MODIFICADO] Prioriza o último timestamp do log de coletas. Se não existir, usa o do 'routers'.
-                const lastSeen = ip ? lastSeenPgMap.get(ip) : null;
-                const downtimeResult = calculateDowntime(lastSeen || router.last_seen);
+                const downtimeResult = calculateDowntime(effectiveLastSeen);
                 downtime = downtimeResult.formatted;
                 downtime_alert = downtimeResult.hours >= 24;
             }
@@ -1132,6 +1138,8 @@ router.get('/all-routers-status', [verifyToken, checkPermission('routers.monitor
                 id: router.id,
                 name: router.name,
                 ip: ip,
+                last_seen: effectiveLastSeen, // [NOVO] Envia a data real para o frontend
+                last_seen_manual: router.last_seen_manual, // [NOVO] Envia a data de verificação manual para exibição consistente
                 status: router.status || 'offline', // Usa o status do PG
                 downtime: downtime, // Agora sempre terá um valor ('-' ou o tempo calculado)
                 group_name: groupName, // [CORRIGIDO] Retorna o nome do grupo correto.

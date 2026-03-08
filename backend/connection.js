@@ -270,6 +270,14 @@ async function checkAndUpgradeSchema(client) {
         console.log("   ✅ Coluna 'status_changed_at' adicionada.");
     }
 
+    // [NOVO] Adiciona coluna para comunidade SNMP
+    const snmpCommunityExists = await checkColumn('routers', 'snmp_community');
+    if (!snmpCommunityExists) {
+        console.log("   -> Adicionando coluna 'snmp_community' à tabela 'routers'...");
+        await client.query("ALTER TABLE routers ADD COLUMN snmp_community VARCHAR(50) DEFAULT 'public'");
+        console.log("   ✅ Coluna 'snmp_community' adicionada.");
+    }
+
     // [NOVO] Verifica e adiciona a coluna 'is_system' na tabela 'banners'
     const isSystemBannersExists = await checkColumn('banners', 'is_system');
     if (!isSystemBannersExists) {
@@ -521,9 +529,10 @@ const startPgReconnect = () => {
         try {
             const client = await pool.connect();
             // [CORREÇÃO] Proteção para o cliente de reconexão
-            client.on('error', (err) => {
+            const reconnectErrorHandler = (err) => {
                 console.error('❌ [PG-RECONNECT] Erro no cliente de teste:', err.message);
-            });
+            };
+            client.on('error', reconnectErrorHandler);
 
             console.log('✅ [PG-RECONNECT] Conexão com o PostgreSQL restabelecida!');
             logOfflineEvent('RECONNECT_SUCCESS', 'Conexão com o PostgreSQL restabelecida'); // [NOVO]
@@ -532,6 +541,7 @@ const startPgReconnect = () => {
             clearInterval(pgReconnectInterval); // Para as tentativas
             pgReconnectInterval = null;
             await checkAndUpgradeSchema(client); // Verifica o esquema após reconectar
+            client.removeListener('error', reconnectErrorHandler); // [CORREÇÃO] Remove listener para evitar memory leak
             client.release();
             // Aqui poderíamos emitir um evento para reiniciar serviços dependentes, como o 'startPeriodicRouterCheck'
         } catch (err) {
@@ -612,9 +622,10 @@ const testInitialConnection = async () => {
                 // Usa uma nova conexão da pool para não interferir
                 const client = await pool.connect();
                 // [CORREÇÃO] Proteção para o cliente de manutenção
-                client.on('error', (err) => {
+                const maintenanceErrorHandler = (err) => {
                     console.error('❌ [MAINTENANCE] Erro no cliente de campanhas:', err.message);
-                });
+                };
+                client.on('error', maintenanceErrorHandler);
                 try {
                     const result = await client.query(`
                         UPDATE campaigns 
@@ -661,6 +672,7 @@ const testInitialConnection = async () => {
                     }
 
                 } finally {
+                    client.removeListener('error', maintenanceErrorHandler); // [CORREÇÃO] Remove listener
                     client.release();
                 }
             } catch (err) {
@@ -674,9 +686,10 @@ const testInitialConnection = async () => {
             try {
                 const client = await pool.connect();
                 // [CORREÇÃO] Proteção para o cliente de manutenção
-                client.on('error', (err) => {
+                const syncErrorHandler = (err) => {
                     console.error('❌ [MAINTENANCE] Erro no cliente de logs:', err.message);
-                });
+                };
+                client.on('error', syncErrorHandler);
                 try {
                     // Verifica se a tabela radacct existe
                     const checkRadacct = await client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'radacct'");
@@ -699,6 +712,7 @@ const testInitialConnection = async () => {
                         }
                     }
                 } finally {
+                    client.removeListener('error', syncErrorHandler); // [CORREÇÃO] Remove listener
                     client.release();
                 }
             } catch (err) {

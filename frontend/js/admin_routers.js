@@ -22,6 +22,16 @@ if (window.initRoutersPage) {
         const discoverModal = document.getElementById('discoverModal');
         const discoverForm = document.getElementById('discoverForm');
 
+        // [NOVO] Injeta a coluna "Visto em" no cabeçalho da tabela se não existir
+        const tableHeadRow = document.querySelector('#routersTable thead tr');
+        if (tableHeadRow && !tableHeadRow.querySelector('.th-last-seen')) {
+            const th = document.createElement('th');
+            th.className = 'th-last-seen';
+            th.textContent = 'Visto em';
+            // Insere antes da última coluna (Ações)
+            tableHeadRow.insertBefore(th, tableHeadRow.lastElementChild);
+        }
+
         // [NOVO] Cria e injeta o botão de exportar para Excel ao lado dos outros botões de ação
         if (checkStatusBtn && checkStatusBtn.parentElement) {
             // Verifica se já existe para não duplicar
@@ -210,11 +220,16 @@ if (window.initRoutersPage) {
                     }
                 }
 
+                // [NOVO] Formata a data de última visualização
+                // [CORREÇÃO] Usa last_seen_manual para garantir consistência com a verificação manual
+                const lastSeenDisplay = router.last_seen_manual ? new Date(router.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
+
                 row.innerHTML = `
                     <td>${router.id}</td>
                     <td>${router.name}</td>
                     <td><span class="status-dot ${statusDotClass}"></span> ${statusLabel}</td>
                     <td>${router.observacao || 'N/A'}</td> 
+                    <td>${lastSeenDisplay}</td>
                     <td class="action-buttons">
                         <button class="btn-edit" onclick="openModalForEditRouter(${router.id})" title="Editar Roteador"><i class="fas fa-pencil-alt"></i></button>
                         <button class="btn-delete" onclick="handleDeleteRouter(${router.id})" title="Eliminar Roteador"><i class="fas fa-trash-alt"></i></button>
@@ -231,6 +246,7 @@ if (window.initRoutersPage) {
                 detailsRow.className = 'router-details-row hidden';
                 detailsRow.innerHTML = `
                     <td colspan="5">
+                    <td colspan="6">
                         <div class="router-details-grid">
                             <div class="detail-item">
                                 <span class="detail-label">Latência</span>
@@ -247,6 +263,10 @@ if (window.initRoutersPage) {
                             <div class="detail-item">
                                 <span class="detail-label">Inatividade</span>
                                 <span class="detail-value" id="downtime-${router.id}">${downtimeHTML}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Visto por Último</span>
+                                <span class="detail-value" id="last-seen-${router.id}">${lastSeenDisplay}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">Grupo</span>
@@ -553,9 +573,9 @@ if (window.initRoutersPage) {
             checkStatusBtn.classList.add('btn-danger'); // Adiciona estilo visual de alerta (opcional)
             const selectedPeriod = document.getElementById('availabilityPeriodSelect')?.value || '24h'; // [NOVO] Pega o período
 
-            // Percorre cada linha da tabela para atualizar o status individualmente
-            const rows = routersTableBody.querySelectorAll('tr.router-main-row'); // [CORRIGIDO] Seleciona apenas as linhas principais
-            if (rows.length === 0) {
+            // [MODIFICADO] Usa a lista completa de roteadores (allRouters) em vez de apenas os da página atual
+            // Isso garante que TODOS os roteadores sejam verificados, mesmo os que estão na página 2, 3, etc.
+            if (allRouters.length === 0) {
                  isCheckingStatus = false;
                  checkStatusBtn.textContent = 'Verificar Status';
                  checkStatusBtn.classList.remove('btn-danger');
@@ -572,9 +592,12 @@ if (window.initRoutersPage) {
             checkStatusBtn.parentNode.insertBefore(progressContainer, checkStatusBtn.nextSibling);
 
             let processedCount = 0;
-            const totalCount = rows.length;
+            const totalCount = allRouters.length;
 
-            for (const row of rows) {
+            for (const router of allRouters) {
+                // [NOVO] Atualiza o texto do botão para mostrar progresso real (ex: "Verificando 5/50...")
+                checkStatusBtn.textContent = `Verificando ${processedCount + 1}/${totalCount}...`;
+
                 // [NOVO] Verifica se o processo foi cancelado ou se o utilizador saiu da página
                 // document.body.contains(checkStatusBtn) retorna false se o botão não estiver mais no DOM (mudança de página)
                 if (!isCheckingStatus || !document.body.contains(checkStatusBtn)) {
@@ -582,31 +605,38 @@ if (window.initRoutersPage) {
                     break;
                 }
 
-                // Tenta extrair o ID do roteador da linha
-                const idCell = row.cells[0];
-                const routerId = parseInt(idCell.textContent, 10);
-                
-                if (!routerId) continue;
-                
-                const statusCell = row.cells[2];
-                // [CORRIGIDO] Seleciona os elementos na linha de detalhes pelo ID
-                const latencyEl = document.getElementById(`latency-${routerId}`);
-                const uptimeEl = document.getElementById(`uptime-${routerId}`);
-                const availEl = document.getElementById(`availability-${routerId}`);
-                const downtimeEl = document.getElementById(`downtime-${routerId}`);
+                // Tenta encontrar a linha na tabela (se estiver na página atual)
+                const row = routersTableBody.querySelector(`tr[data-router-id="${router.id}"]`);
+                let statusCell, latencyEl, uptimeEl, availEl, downtimeEl, lastSeenEl;
 
-                statusCell.innerHTML = 'Verificando...';
-                if(latencyEl) latencyEl.textContent = '...';
-                if(uptimeEl) uptimeEl.textContent = '...';
-                if(availEl) availEl.textContent = '...';
-                if(downtimeEl) downtimeEl.textContent = '...';
+                if (row) {
+                    statusCell = row.cells[2];
+                    latencyEl = document.getElementById(`latency-${router.id}`);
+                    uptimeEl = document.getElementById(`uptime-${router.id}`);
+                    availEl = document.getElementById(`availability-${router.id}`);
+                    downtimeEl = document.getElementById(`downtime-${router.id}`);
+                    lastSeenEl = document.getElementById(`last-seen-${router.id}`);
+
+                    if (statusCell) statusCell.innerHTML = 'Verificando...';
+                    if(latencyEl) latencyEl.textContent = '...';
+                    if(uptimeEl) uptimeEl.textContent = '...';
+                    if(availEl) availEl.textContent = '...';
+                    if(downtimeEl) downtimeEl.textContent = '...';
+                }
+
+                // [NOVO] Adiciona um delay de 800ms para permitir acompanhar visualmente
+                await new Promise(resolve => setTimeout(resolve, 800));
+                // [MODIFICADO] Aumentado para 1.5s (1500ms) para facilitar o acompanhamento visual
+                await new Promise(resolve => setTimeout(resolve, 1500));
 
                 try {
-                    // Atualiza o objeto 'router' na cache 'allRouters'
-                    const routerInCache = allRouters.find(r => r.id === routerId);
-                    const pingResponse = await apiRequest(`/api/routers/${routerId}/ping`, 'POST', { period: selectedPeriod });
+                    const pingResponse = await apiRequest(`/api/routers/${router.id}/ping`, 'POST', { period: selectedPeriod });
 
-                    if (pingResponse && pingResponse.status) {
+                    // Atualiza o objeto na cache global
+                    Object.assign(router, pingResponse);
+
+                    // Se a linha estiver visível (página atual), atualiza o DOM
+                    if (row && pingResponse && pingResponse.status) {
                         // [CORREÇÃO] Se estiver em manutenção, força o visual de manutenção
                         if (pingResponse.is_maintenance) {
                             statusCell.innerHTML = `<span class="status-dot status-maintenance"></span> Manutenção`;
@@ -624,6 +654,15 @@ if (window.initRoutersPage) {
                             }
                         } else {
                             if(latencyEl) { latencyEl.textContent = '-'; latencyEl.style.color = ''; }
+                        }
+
+                        if (row && row.cells[4]) {
+                            row.cells[4].textContent = pingResponse.last_seen_manual ? new Date(pingResponse.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
+                        }
+
+                        // [CORREÇÃO] Atualiza o detalhe com a mesma data consistente
+                        if (lastSeenEl) {
+                            lastSeenEl.textContent = pingResponse.last_seen_manual ? new Date(pingResponse.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
                         }
 
                         // [REFEITO] Lógica de Disponibilidade e Inatividade
@@ -650,19 +689,17 @@ if (window.initRoutersPage) {
                             }
                         }
 
-                        if (routerInCache) routerInCache.status = pingResponse.status; // Atualiza cache
-                    } else {
-                        throw new Error("Resposta inválida da API de ping.");
                     }
 
                 } catch (error) {
-                    statusCell.innerHTML = `<span class="status-dot status-offline"></span> erro`;
-                    if(latencyEl) latencyEl.textContent = '-';
-                    if(uptimeEl) uptimeEl.textContent = '-';
-                    if(availEl) availEl.textContent = '-';
-                    if(downtimeEl) downtimeEl.textContent = '-';
-                    const routerInCache = allRouters.find(r => r.id === routerId);
-                    if (routerInCache) routerInCache.status = 'offline'; // Atualiza cache
+                    if (row) {
+                        if (statusCell) statusCell.innerHTML = `<span class="status-dot status-offline"></span> erro`;
+                        if(latencyEl) latencyEl.textContent = '-';
+                        if(uptimeEl) uptimeEl.textContent = '-';
+                        if(availEl) availEl.textContent = '-';
+                        if(downtimeEl) downtimeEl.textContent = '-';
+                    }
+                    router.status = 'offline'; // Atualiza cache
                 }
 
                 // [NOVO] Atualiza a barra de progresso
@@ -1126,12 +1163,16 @@ if (window.initRoutersPage) {
         document.getElementById('groupPrefix').addEventListener('change', handlePrefixChangeAndFilter);
 
         // [NOVO] Inicia a atualização automática a cada 10 segundos
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-        autoRefreshInterval = setInterval(() => loadPageData(true), 10000);
+        // [REMOVIDO] A atualização automática foi desativada nesta página conforme solicitado,
+        // para não interferir na verificação manual e na paginação.
+        // [REMOVIDO] A atualização automática foi desativada nesta página (admin_dashboard) conforme solicitado.
+        // Ela permanece ativa apenas na página dedicada de monitoramento (/pages/router_status.html).
+        // if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        // autoRefreshInterval = setInterval(() => loadPageData(true), 10000);
 
         // Limpa o intervalo ao sair da página (se a SPA suportar navegação sem reload)
         window.addEventListener('beforeunload', () => {
-            clearInterval(autoRefreshInterval);
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         });
     };
 }

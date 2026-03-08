@@ -31,8 +31,8 @@ const runDailyConsolidation = async () => {
             const countResult = await client.query(`
                 SELECT COUNT(*) as total 
                 FROM router_uptime_log 
-                WHERE router_host =  
-                AND collected_at::date = 
+                WHERE router_host = $1 
+                AND collected_at::date = $2
             `, [router.ip_address, targetDate]);
 
             const successCount = parseInt(countResult.rows[0].total, 10);
@@ -50,7 +50,7 @@ const runDailyConsolidation = async () => {
             // Salva o resumo na tabela consolidada
             await client.query(`
                 INSERT INTO router_daily_stats (router_id, date, uptime_percent, downtime_minutes)
-                VALUES (, , , )
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (router_id, date) 
                 DO UPDATE SET 
                     uptime_percent = EXCLUDED.uptime_percent,

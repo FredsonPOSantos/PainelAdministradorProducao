@@ -221,6 +221,13 @@ const getAnalyticsStats = async (req, res) => {
 // [NOVO] Função auxiliar para buscar métricas de servidores remotos via SSH
 const getRemoteServerStats = async (name, ip) => {
     try {
+        // [SEGURANÇA] Validação rigorosa de IP para prevenir Command Injection
+        // Aceita apenas IPv4 válido.
+        const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        if (!ip || !ipRegex.test(ip)) {
+            return { name, ip, online: false, error: 'Endereço IP inválido.' };
+        }
+
         // Comando SSH otimizado para buscar Load Avg, Memória e Disco numa única conexão
         // Requer configuração de chaves SSH (ssh-copy-id) para o utilizador root (ou outro configurado)
         const cmd = `ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@${ip} 'cat /proc/loadavg; echo "---"; free -b; echo "---"; df -B1 /'`;

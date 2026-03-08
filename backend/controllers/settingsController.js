@@ -5,6 +5,7 @@ const { pool } = require('../connection');
 const path = require('path');
 const fs = require('fs'); // Para lidar com caminhos de ficheiro e remoção
 const archiver = require('archiver'); // [NOVO] Para criar arquivos ZIP
+const sanitizeHtmlLib = require('sanitize-html'); // [SEGURANÇA] Biblioteca robusta de sanitização
 const { logAction } = require('../services/auditLogService');
 
 // --- FASE 2.3: Configurações Gerais ---
@@ -521,11 +522,18 @@ const updateSmtpSettings = async (req, res) => {
 const updatePolicies = async (req, res) => {
     const { terms_content, marketing_policy_content } = req.body;
 
-    // Sanitização básica para remover scripts potencialmente maliciosos.
-    // Uma biblioteca como DOMPurify seria ideal para uma sanitização mais robusta.
+    // [SEGURANÇA] Sanitização robusta permitindo formatação rica mas removendo scripts (XSS)
     const sanitizeHtml = (html) => {
         if (!html) return null;
-        return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        return sanitizeHtmlLib(html, {
+            allowedTags: sanitizeHtmlLib.defaults.allowedTags.concat(['img', 'h1', 'h2', 'span', 'div', 'u', 's']),
+            allowedAttributes: {
+                ...sanitizeHtmlLib.defaults.allowedAttributes,
+                '*': ['style', 'class', 'align'],
+                'img': ['src', 'alt', 'width', 'height']
+            },
+            allowedSchemes: ['http', 'https', 'mailto', 'tel']
+        });
     };
 
     const sanitizedTerms = sanitizeHtml(terms_content);

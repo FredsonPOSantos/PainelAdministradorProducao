@@ -28,6 +28,7 @@ const express = require('express'); // [CORREÇÃO] A importação do express j�
 const http = require('http'); // [NOVO] Necessário para Socket.io
 const { Server } = require("socket.io"); // [NOVO] Socket.io
 const rateLimit = require('express-rate-limit'); // [NOVO] Rate Limiting
+const helmet = require('helmet'); // [SEGURANÇA] Proteção de cabeçalhos HTTP
 const cors = require('cors');
 const { pool, testInitialConnection, pgConnectionStatus, startPgReconnect } = require('./connection'); // [MODIFICADO]
 const methodOverride = require('method-override'); // [NOVO] Importa o method-override
@@ -69,6 +70,7 @@ const influxService = require('./services/influxService'); // [NOVO] Importa o s
 const { logAction } = require('./services/auditLogService');
 const { logError } = require('./services/errorLogService'); // [NOVO] Importa o serviço de log de erros
 const { runDailyConsolidation } = require('./services/historyService'); // [NOVO] Serviço de Histórico
+const { checkSnmpStatus } = require('./services/snmpService'); // [NOVO] Serviço SNMP
 const verifyToken = require('./middlewares/authMiddleware'); // [NOVO] Importa middleware de auth
 const checkPermission = require('./middlewares/roleMiddleware'); // [NOVO] Importa middleware de permissão
 const authRoutes = require('./routes/auth');
@@ -106,6 +108,22 @@ const PORT = process.env.PORT || 3000;
 app.set('io', io); // Torna o 'io' acessível nos controllers via req.app.get('io')
 
 // --- Middlewares Essenciais ---
+// [SEGURANÇA] Configuração do Helmet com Content Security Policy (CSP) ajustada para permitir CDNs externos
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "cdn.socket.io"],
+            styleSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com", "fonts.googleapis.com"],
+            fontSrc: ["'self'", "cdnjs.cloudflare.com", "fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "blob:", "http:", "https:"],
+            connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
+            frameSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: null // Desativa upgrade automático para HTTPS em ambiente de desenvolvimento local
+        }
+    }
+}));
 app.use(cors()); // Permite requisições de origens diferentes (ex: frontend em porta diferente)
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Necessário para method-override ler o corpo
@@ -268,21 +286,23 @@ const startPeriodicRouterCheck = () => {
             );
 
             // [MODIFICADO] Seleciona apenas roteadores que NÃO estão em manutenção
-            const routersResult = await client.query('SELECT id, ip_address, status, monitoring_interface, username, password, api_port FROM routers WHERE ip_address IS NOT NULL AND is_maintenance = false');
+            // [CORREÇÃO] Adiciona 'last_seen' à consulta para verificar a atividade do agente
+            // [NOVO] Adiciona 'snmp_community'
+            const routersResult = await client.query('SELECT id, ip_address, status, monitoring_interface, username, password, api_port, last_seen, snmp_community FROM routers WHERE ip_address IS NOT NULL AND is_maintenance = false');
             const routersToCheck = routersResult.rows;
             
             if (routersToCheck.length === 0) {
                 // console.log('⏹️ [ROUTER-CHECK] Nenhum roteador com IP configurado para verificar. Ciclo concluído.');
             } else {
                 for (const router of routersToCheck) {
-                    // [MODIFICADO] Realiza 3 pings para calcular a média
+                    // [MODIFICADO] Realiza 5 pings para calcular a média (Mais tolerância a perdas)
                     let newStatus;
                     let totalLatency = 0;
                     let successCount = 0;
                     
-                    for (let i = 0; i < 3; i++) {
+                    for (let i = 0; i < 4; i++) { // [MODIFICADO] Padronizado para 4 tentativas
                         try {
-                            const res = await ping.promise.probe(router.ip_address, { timeout: 2 });
+                            const res = await ping.promise.probe(router.ip_address, { timeout: 2 }); // Timeout de 2s por ping
                             if (res.alive) {
                                 totalLatency += (typeof res.time === 'number' ? res.time : parseFloat(res.avg));
                                 successCount++;
@@ -292,25 +312,6 @@ const startPeriodicRouterCheck = () => {
 
                     newStatus = successCount > 0 ? 'online' : 'offline';
                     const latency = successCount > 0 ? Math.round(totalLatency / successCount) : null;
-                    
-                    // [NOVO] Se o roteador está online, mas tem uma interface de monitoramento, verifica o status dela
-                    if (newStatus === 'online' && router.monitoring_interface && router.username && router.password && RouterOSClient) {
-                        try {
-                            const apiClient = new RouterOSClient({ host: router.ip_address, user: router.username, password: router.password, port: router.api_port || 8728, timeout: 5 });
-                            apiClient.setMaxListeners(20); // [CORREÇÃO]
-                            await apiClient.connect();
-                            const interfaceStatus = await apiClient.write('/interface/print', [`?name=${router.monitoring_interface}`]);
-                            apiClient.close();
-                            if (interfaceStatus.length > 0 && interfaceStatus[0].running === 'false') {
-                                newStatus = 'offline'; // Força offline se a interface monitorada estiver inativa
-                                console.log(`[ROUTER-CHECK] Roteador ${router.ip_address} marcado como offline pois a interface '${router.monitoring_interface}' está inativa.`);
-                            }
-                        } catch (apiError) {
-                            // [SEGURANÇA] Sanitiza a mensagem de erro para remover possíveis senhas
-                            const safeMsg = apiError.message ? apiError.message.replace(/password=['"][^']*['"]/gi, "password='******'").replace(/password=[^ ]+/gi, "password=******") : 'Erro desconhecido';
-                            console.warn(`[ROUTER-CHECK] Falha ao verificar interface '${router.monitoring_interface}' em ${router.ip_address}: ${safeMsg}`);
-                        }
-                    }
 
                     // [CORREÇÃO DEFINITIVA] Lógica de atualização de status para calcular inatividade corretamente.
                     // A coluna 'last_seen' só deve ser atualizada quando o roteador está ONLINE.
@@ -318,7 +319,7 @@ const startPeriodicRouterCheck = () => {
                         // Roteador está online. Atualiza status, latência e o 'last_seen'.
                         if (newStatus !== router.status) {
                             // Se o status mudou de offline para online, atualiza também o 'status_changed_at'.
-                            await client.query('UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), status_changed_at = NOW() WHERE id = $3', [newStatus, latency, router.id]);
+                            await client.query(`UPDATE routers SET status = $1, latency = $2, last_seen = NOW(), status_changed_at = NOW() WHERE id = $3`, [newStatus, latency, router.id]);
                         } else {
                             // Se já estava online, apenas atualiza a latência e o 'last_seen'.
                             await client.query('UPDATE routers SET latency = $1, last_seen = NOW() WHERE id = $2', [latency, router.id]);
