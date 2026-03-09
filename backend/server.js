@@ -123,8 +123,16 @@ app.use(helmet({
             upgradeInsecureRequests: null // Desativa upgrade automático para HTTPS em ambiente de desenvolvimento local
         }
     },
-    crossOriginResourcePolicy: { policy: "cross-origin" } // [CORREÇÃO] Permite carregar recursos (imagens) de origens cruzadas
+    crossOriginResourcePolicy: false // [MODIFICADO] Desativamos no Helmet para definir manualmente abaixo
 }));
+
+// [CORREÇÃO] Middleware manual para forçar o cabeçalho CORP.
+// Isso resolve o erro 'ERR_BLOCKED_BY_RESPONSE.NotSameOrigin' garantidamente.
+app.use((req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+});
+
 app.use(cors()); // Permite requisições de origens diferentes (ex: frontend em porta diferente)
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Necessário para method-override ler o corpo
