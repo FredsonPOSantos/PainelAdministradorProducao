@@ -122,7 +122,8 @@ app.use(helmet({
             objectSrc: ["'none'"],
             upgradeInsecureRequests: null // Desativa upgrade automático para HTTPS em ambiente de desenvolvimento local
         }
-    }
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" } // [CORREÇÃO] Permite carregar recursos (imagens) de origens cruzadas
 }));
 app.use(cors()); // Permite requisições de origens diferentes (ex: frontend em porta diferente)
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
