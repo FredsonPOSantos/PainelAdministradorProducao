@@ -70,7 +70,7 @@ bash
 cd /var/www/PainelAdministradorMainMain/backend
 # Corrige a versão da biblioteca ping para ser compatível com Node.js 20
 npm install ping@0.4.4
-npm install
+npm ci --production
 # Se usar node-routeros, certifique-se que está instalado
 npm install node-routeros
 Configuração do Firewall (UFW):
@@ -125,7 +125,7 @@ Copie o novo sistema (Versão EJS): Transfira os arquivos da nova versão para /
 Instale as dependências:
 bash
 cd /var/www/portal-cativo
-npm install
+npm ci --production
 Configure o .env do Portal: Este passo é crucial para a integração das campanhas.
 env
  Show full code block 

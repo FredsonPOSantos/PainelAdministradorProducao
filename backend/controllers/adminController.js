@@ -6,6 +6,7 @@ const { pool } = require('../connection');
 const bcrypt = require('bcrypt');
 const { getPermissionsForRole } = require('./permissionsController');
 const { logAction } = require('../services/auditLogService');
+const { validateEmail } = require('../services/emailValidatorService'); // [NOVO]
 
 // Função para obter o perfil do utilizador logado
 const getUserProfile = async (req, res) => {
@@ -80,6 +81,12 @@ const createAdminUser = async (req, res) => {
       return res.status(400).json({ message: "A função (role) fornecida é inválida." });
   }
 
+  // [NOVO] Validação de e-mail (Regex + MX)
+  const emailValidation = await validateEmail(email);
+  if (!emailValidation.isValid) {
+      return res.status(400).json({ message: emailValidation.reason });
+  }
+
   try {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -145,6 +152,11 @@ const updateUser = async (req, res) => {
 
   // [NOVO] Adiciona o campo de e-mail à lógica de atualização
   if (email !== undefined) {
+      // [NOVO] Validação de e-mail se for alterado
+      const emailValidation = await validateEmail(email);
+      if (!emailValidation.isValid) {
+          return res.status(400).json({ message: emailValidation.reason });
+      }
       fields.push(`email = $${queryIndex++}`);
       values.push(email);
   }

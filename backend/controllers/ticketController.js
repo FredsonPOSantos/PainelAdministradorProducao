@@ -5,6 +5,7 @@ const { pool } = require('../connection');
 const { logAction } = require('../services/auditLogService');
 const { sendEmail } = require('../emailService');
 const aiService = require('../services/aiService'); // [NOVO] Importa o serviço de IA
+const { validateEmail } = require('../services/emailValidatorService'); // [NOVO]
 
 // Função para gerar o número do ticket no formato DDMMAAAAHHMM-ID
 const generateTicketNumber = (ticketId) => {
@@ -139,6 +140,12 @@ const createPublicTicket = async (req, res) => {
 
     if (!name || !email || !title || !message) {
         return res.status(400).json({ success: false, message: 'Nome, e-mail, assunto e mensagem são obrigatórios.' });
+    }
+
+    // [NOVO] Validação de e-mail (Regex + MX) para tickets públicos
+    const emailValidation = await validateEmail(email);
+    if (!emailValidation.isValid) {
+        return res.status(400).json({ success: false, message: emailValidation.reason });
     }
 
     const client = await pool.connect();
