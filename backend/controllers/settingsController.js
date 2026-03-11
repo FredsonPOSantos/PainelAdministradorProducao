@@ -578,7 +578,7 @@ const listMediaFiles = async (req, res) => {
             folderPath = '../../public/uploads/banners';
             break;
         case 'backgrounds':
-            folderPath = '../../public/uploads/background'; // [CORRIGIDO] Aponta para a pasta 'background' (minúsculas)
+            folderPath = '../../public/uploads/background'; // Aponta para 'background' (minúsculas)
             break;
         case 'hotspot_backgrounds': // [NOVO]
             folderPath = '../../public/uploads/Background_hotspot';
@@ -600,6 +600,12 @@ const listMediaFiles = async (req, res) => {
 
     try {
         if (!fs.existsSync(absolutePath)) {
+            // [CORREÇÃO] Se a pasta não existir, tenta criar ou verificar caminhos alternativos
+            // Isso ajuda se houver confusão entre 'background' e 'Background'
+            if (type === 'backgrounds') {
+                const altPath = path.join(__dirname, '../../public/uploads/Background');
+                if (fs.existsSync(altPath)) return listFilesFromPath(altPath, type, res);
+            }
             return res.json({ success: true, data: [] });
         }
 
@@ -615,7 +621,7 @@ const listMediaFiles = async (req, res) => {
 
         const fileList = filteredFiles.map(file => {
             let urlFolder = 'banners';
-            if (type === 'backgrounds') urlFolder = 'background';
+            if (type === 'backgrounds') urlFolder = 'background'; // Garante que a URL pública use 'background'
             else if (type === 'hotspot_backgrounds') urlFolder = 'Background_hotspot';
             else if (type === 'logos') urlFolder = 'logos';
             else if (type === 'hotspot_logos') urlFolder = 'logo_hotspot';
@@ -633,6 +639,27 @@ const listMediaFiles = async (req, res) => {
         console.error('Erro ao listar arquivos de mídia:', error);
         res.status(500).json({ message: 'Erro interno ao listar arquivos.' });
     }
+};
+
+// [NOVO] Função auxiliar para reutilizar lógica de listagem
+const listFilesFromPath = (absPath, type, res) => {
+    const files = fs.readdirSync(absPath);
+    let allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp)$/i;
+    
+    const filteredFiles = files.filter(file => allowedExtensions.test(file));
+    const fileList = filteredFiles.map(file => {
+        let urlFolder = 'banners';
+        if (type === 'backgrounds') urlFolder = 'background'; // Mantém padrão minúsculo na URL
+        else if (type === 'hotspot_backgrounds') urlFolder = 'Background_hotspot';
+        else if (type === 'logos') urlFolder = 'logos';
+        else if (type === 'hotspot_logos') urlFolder = 'logo_hotspot';
+        
+        return {
+            name: file,
+            url: `/uploads/${urlFolder}/${file}`
+        };
+    });
+    return res.json({ success: true, data: fileList });
 };
 
 /**

@@ -117,7 +117,8 @@ const getAllTemplates = async (req, res) => {
  * @description Atualiza um template existente.
  */
 const updateTemplate = async (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10); // [CORREÇÃO] Garante que o ID seja um número inteiro
+
   let {
     name,
     base_model,
@@ -190,6 +191,7 @@ const updateTemplate = async (req, res) => {
       RETURNING *;
     `;
     // Usa as variáveis atualizadas que podem conter os caminhos dos novos arquivos
+    // [CORREÇÃO] Garante que campos opcionais sejam null se undefined para evitar erros no banco
     const values = [name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id || null, postlogin_banner_id || null, form_background_color, font_family, id, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size];
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
