@@ -411,12 +411,20 @@ async function checkAndUpgradeSchema(client) {
         { key: 'routers.create', feature: 'Gestão: Roteadores', action: 'Criar' },
         { key: 'routers.update', feature: 'Gestão: Roteadores', action: 'Editar' },
         { key: 'routers.delete', feature: 'Gestão: Roteadores', action: 'Eliminar' },
+        { key: 'routers.check_status', feature: 'Gestão: Roteadores', action: 'Verificar Status (Ping)' }, // [NOVO]
         { key: 'routers.reboot', feature: 'Gestão: Roteadores', action: 'Reiniciar/Desligar' },
         { key: 'routers.individual.delete_permanent', feature: 'Gestão: Roteadores', action: 'Exclusão Permanente' },
         { key: 'routers.monitoring.read', feature: 'Gestão: Roteadores', action: 'Ver Monitoramento (NOC)' },
         { key: 'routers.dashboard.read', feature: 'Gestão: Roteadores', action: 'Ver Dashboard Individual' },
         { key: 'routers.dashboard.clients', feature: 'Gestão: Roteadores', action: 'Ver Clientes no Dashboard' },
         { key: 'routers.dashboard.interfaces', feature: 'Gestão: Roteadores', action: 'Ver Interfaces no Dashboard' },
+
+        // [NOVO] Funcionalidades Avançadas de Roteadores
+        { key: 'routers.manage_groups', feature: 'Gestão: Roteadores (Avançado)', action: 'Gerir Grupos' },
+        { key: 'routers.diagnostics', feature: 'Gestão: Roteadores (Avançado)', action: 'Executar Diagnósticos (Ping/Torch)' },
+        { key: 'routers.backups', feature: 'Gestão: Roteadores (Avançado)', action: 'Gerir Backups' },
+        { key: 'routers.kick_client', feature: 'Gestão: Roteadores (Avançado)', action: 'Desconectar Clientes' },
+        { key: 'routers.view_password', feature: 'Gestão: Roteadores (Avançado)', action: 'Visualizar Senhas da API' },
 
         // Perfis (Roles)
         { key: 'roles.read', feature: 'Gestão: Perfis', action: 'Visualizar' },

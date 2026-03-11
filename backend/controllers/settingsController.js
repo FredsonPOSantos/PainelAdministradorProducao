@@ -578,7 +578,7 @@ const listMediaFiles = async (req, res) => {
             folderPath = '../../public/uploads/banners';
             break;
         case 'backgrounds':
-            folderPath = '../../public/uploads/Background'; // [CORRIGIDO] Aponta para a pasta 'Background'
+            folderPath = '../../public/uploads/background'; // [CORRIGIDO] Aponta para a pasta 'background' (minúsculas)
             break;
         case 'hotspot_backgrounds': // [NOVO]
             folderPath = '../../public/uploads/Background_hotspot';
@@ -615,7 +615,7 @@ const listMediaFiles = async (req, res) => {
 
         const fileList = filteredFiles.map(file => {
             let urlFolder = 'banners';
-            if (type === 'backgrounds') urlFolder = 'Background';
+            if (type === 'backgrounds') urlFolder = 'background';
             else if (type === 'hotspot_backgrounds') urlFolder = 'Background_hotspot';
             else if (type === 'logos') urlFolder = 'logos';
             else if (type === 'hotspot_logos') urlFolder = 'logo_hotspot';
@@ -644,7 +644,7 @@ const deleteMediaFile = async (req, res) => {
 
     switch (type) {
         case 'banners': folderPath = '../../public/uploads/banners'; break;
-        case 'backgrounds': folderPath = '../../public/uploads/Background'; break; // [CORRIGIDO]
+        case 'backgrounds': folderPath = '../../public/uploads/background'; break; // [CORRIGIDO]
         case 'hotspot_backgrounds': folderPath = '../../public/uploads/Background_hotspot'; break; // [NOVO]
         case 'logos': folderPath = '../../public/uploads/logos'; break; // [CORRIGIDO]
         case 'hotspot_logos': folderPath = '../../public/uploads/logo_hotspot'; break; // [NOVO]

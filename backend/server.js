@@ -365,7 +365,7 @@ const startPeriodicRouterCheck = () => {
             isRouterCheckRunning = false; // [NOVO] Libera a flag para a próxima execução
         }
     }
-    setInterval(checkRouters, 60000); // Executa a cada 60 segundos
+    setInterval(checkRouters, 120000); // [AJUSTE] Executa a cada 120 segundos (2 min) para evitar sobreposição em redes grandes
 };
 
 // --- [NOVO] Agendador de Tarefas Noturnas (Consolidação de Histórico) ---
