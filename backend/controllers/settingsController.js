@@ -570,96 +570,88 @@ const updatePolicies = async (req, res) => {
  */
 const listMediaFiles = async (req, res) => {
     const { type } = req.query;
-    let folderPath = '';
+    
+    let candidates = [];
 
-    // Mapeia os tipos para as pastas reais
+    // Define prioridades de busca para lidar com diferenças de estrutura (Local vs Root) e maiúsculas/minúsculas
     switch (type) {
-        case 'banners':
-            folderPath = '../../public/uploads/banners';
-            break;
         case 'backgrounds':
-            folderPath = '../../public/uploads/background'; // Aponta para 'background' (minúsculas)
+            candidates = [
+                { path: '../../public/uploads/background', urlSegment: 'background' },
+                { path: '../../public/uploads/Background', urlSegment: 'Background' },
+                { path: '../public/uploads/background', urlSegment: 'background' }
+            ];
             break;
-        case 'hotspot_backgrounds': // [NOVO]
-            folderPath = '../../public/uploads/Background_hotspot';
+        case 'hotspot_backgrounds':
+            candidates = [
+                { path: '../../public/uploads/Background_hotspot', urlSegment: 'Background_hotspot' },
+                { path: '../public/uploads/Background_hotspot', urlSegment: 'Background_hotspot' }
+            ];
+            break;
+        case 'banners':
+            candidates = [
+                { path: '../../public/uploads/banners', urlSegment: 'banners' },
+                { path: '../public/uploads/banners', urlSegment: 'banners' }
+            ];
             break;
         case 'logos':
-            folderPath = '../../public/uploads/logos'; // [CORRIGIDO] Aponta para a pasta 'logos'
+            candidates = [
+                { path: '../../public/uploads/logos', urlSegment: 'logos' },
+                { path: '../public/uploads/logos', urlSegment: 'logos' }
+            ];
             break;
-        case 'hotspot_logos': // [NOVO]
-            folderPath = '../../public/uploads/logo_hotspot';
+        case 'hotspot_logos':
+            candidates = [
+                { path: '../../public/uploads/logo_hotspot', urlSegment: 'logo_hotspot' },
+                { path: '../public/uploads/logo_hotspot', urlSegment: 'logo_hotspot' }
+            ];
             break;
-        case 'ticket_attachments': // [NOVO] Suporte para anexos de tickets
-            folderPath = '../public/uploads/ticket_attachments';
+        case 'ticket_attachments':
+            candidates = [
+                { path: '../public/uploads/ticket_attachments', urlSegment: 'ticket_attachments' },
+                { path: '../../public/uploads/ticket_attachments', urlSegment: 'ticket_attachments' }
+            ];
             break;
         default:
             return res.status(400).json({ message: 'Tipo de mídia inválido.' });
     }
 
-    const absolutePath = path.join(__dirname, folderPath);
+    let allFiles = [];
+    const processedFiles = new Set();
 
     try {
-        if (!fs.existsSync(absolutePath)) {
-            // [CORREÇÃO] Se a pasta não existir, tenta criar ou verificar caminhos alternativos
-            // Isso ajuda se houver confusão entre 'background' e 'Background'
-            if (type === 'backgrounds') {
-                const altPath = path.join(__dirname, '../../public/uploads/Background');
-                if (fs.existsSync(altPath)) return listFilesFromPath(altPath, type, res);
+        for (const cand of candidates) {
+            const absolutePath = path.join(__dirname, cand.path);
+            
+            if (fs.existsSync(absolutePath)) {
+                try {
+                    const files = fs.readdirSync(absolutePath);
+                    
+                    let allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp)$/i;
+                    if (type === 'ticket_attachments') {
+                        allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp|pdf|doc|docx|txt|zip|rar|7z|csv|xls|xlsx)$/i;
+                    }
+
+                    files.forEach(file => {
+                        if (allowedExtensions.test(file) && !processedFiles.has(file)) {
+                            processedFiles.add(file);
+                            allFiles.push({
+                                name: file,
+                                url: `/uploads/${cand.urlSegment}/${file}`
+                            });
+                        }
+                    });
+                } catch (e) {
+                    console.error(`Erro ao ler diretório ${absolutePath}:`, e.message);
+                }
             }
-            return res.json({ success: true, data: [] });
         }
 
-        const files = fs.readdirSync(absolutePath);
-        
-        // [CORREÇÃO] Define extensões permitidas com base no tipo
-        let allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp)$/i;
-        if (type === 'ticket_attachments') {
-            allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp|pdf|doc|docx|txt|zip|rar|7z|csv|xls|xlsx)$/i;
-        }
-
-        const filteredFiles = files.filter(file => allowedExtensions.test(file));
-
-        const fileList = filteredFiles.map(file => {
-            let urlFolder = 'banners';
-            if (type === 'backgrounds') urlFolder = 'background'; // Garante que a URL pública use 'background'
-            else if (type === 'hotspot_backgrounds') urlFolder = 'Background_hotspot';
-            else if (type === 'logos') urlFolder = 'logos';
-            else if (type === 'hotspot_logos') urlFolder = 'logo_hotspot';
-            else if (type === 'ticket_attachments') urlFolder = 'ticket_attachments';
-
-            return {
-                name: file,
-                // Constrói a URL pública baseada na estrutura do server.js
-                url: `/uploads/${urlFolder}/${file}`
-            };
-        });
-
-        res.json({ success: true, data: fileList });
+        res.json({ success: true, data: allFiles });
     } catch (error) {
         console.error('Erro ao listar arquivos de mídia:', error);
         res.status(500).json({ message: 'Erro interno ao listar arquivos.' });
     }
-};
-
-// [NOVO] Função auxiliar para reutilizar lógica de listagem
-const listFilesFromPath = (absPath, type, res) => {
-    const files = fs.readdirSync(absPath);
-    let allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp)$/i;
-    
-    const filteredFiles = files.filter(file => allowedExtensions.test(file));
-    const fileList = filteredFiles.map(file => {
-        let urlFolder = 'banners';
-        if (type === 'backgrounds') urlFolder = 'background'; // Mantém padrão minúsculo na URL
-        else if (type === 'hotspot_backgrounds') urlFolder = 'Background_hotspot';
-        else if (type === 'logos') urlFolder = 'logos';
-        else if (type === 'hotspot_logos') urlFolder = 'logo_hotspot';
-        
-        return {
-            name: file,
-            url: `/uploads/${urlFolder}/${file}`
-        };
-    });
-    return res.json({ success: true, data: fileList });
 };
 
 /**
