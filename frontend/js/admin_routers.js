@@ -1,18 +1,14 @@
 // Ficheiro: js/admin_routers.js
-if (window.initRoutersPage) {
-    console.warn("Tentativa de carregar admin_routers.js múltiplas vezes.");
-} else {
-    window.initRoutersPage = () => {
+window.initRoutersPage = () => {
         console.log("A inicializar a página de gestão de Roteadores...");
         const groupPrefixes = { 'CS': 'Cidade Sol', 'RT': 'Rota Transportes', 'GB': 'Grupo Brasileiro', 'EB': 'Expresso Brasileiro', 'MKT': 'Marketing', 'VM': 'Via Metro', 'VIP': 'Sala Vip', 'GNC': 'Genérico' };
 
-        // --- Elementos do DOM ---
-        const groupsTableBody = document.querySelector('#groupsTable tbody');
+        // --- ELEMENTOS DO DOM ---
         const routersTableBody = document.querySelector('#routersTable tbody');
-        
+        const groupsTableBody = document.querySelector('#groupsTable tbody');
+        const checkStatusBtn = document.getElementById('checkStatusBtn');
         const addGroupBtn = document.getElementById('addGroupBtn');
         const groupModal = document.getElementById('groupModal');
-        const checkStatusBtn = document.getElementById('checkStatusBtn');
         const groupForm = document.getElementById('groupForm');
         
         const routerModal = document.getElementById('routerModal');
@@ -221,8 +217,8 @@ if (window.initRoutersPage) {
                 }
 
                 // [NOVO] Formata a data de última visualização
-                // [CORREÇÃO] Usa last_seen_manual para garantir consistência com a verificação manual
-                const lastSeenDisplay = router.last_seen_manual ? new Date(router.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
+                // [CORREÇÃO] Volta a usar 'last_seen' para incluir as verificações automáticas de fundo
+                const lastSeenDisplay = router.last_seen ? new Date(router.last_seen).toLocaleString('pt-BR') : 'Nunca';
 
                 row.innerHTML = `
                     <td>${router.id}</td>
@@ -231,6 +227,7 @@ if (window.initRoutersPage) {
                     <td>${router.observacao || 'N/A'}</td> 
                     <td>${lastSeenDisplay}</td>
                     <td class="action-buttons">
+                        <button class="btn-secondary btn-refresh" onclick="window.refreshSingleRouter(${router.id})" title="Forçar verificação imediata de status"><i class="fas fa-sync-alt"></i></button>
                         <button class="btn-edit" onclick="openModalForEditRouter(${router.id})" title="Editar Roteador"><i class="fas fa-pencil-alt"></i></button>
                         <button class="btn-delete" onclick="handleDeleteRouter(${router.id})" title="Eliminar Roteador"><i class="fas fa-trash-alt"></i></button>
                         <button class="btn-secondary" onclick="toggleMaintenance(${router.id}, ${router.is_maintenance})" title="Modo Manutenção"><i class="fas fa-tools"></i></button>
@@ -656,13 +653,14 @@ if (window.initRoutersPage) {
                             if(latencyEl) { latencyEl.textContent = '-'; latencyEl.style.color = ''; }
                         }
 
+                        // [CORREÇÃO] Atualiza a célula "Visto em" na tabela principal com a data real do banco (last_seen_manual)
                         if (row && row.cells[4]) {
-                            row.cells[4].textContent = pingResponse.last_seen_manual ? new Date(pingResponse.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
+                            row.cells[4].textContent = pingResponse.last_seen ? new Date(pingResponse.last_seen).toLocaleString('pt-BR') : 'Nunca';
                         }
 
                         // [CORREÇÃO] Atualiza o detalhe com a mesma data consistente
                         if (lastSeenEl) {
-                            lastSeenEl.textContent = pingResponse.last_seen_manual ? new Date(pingResponse.last_seen_manual).toLocaleString('pt-BR') : 'Nunca';
+                            lastSeenEl.textContent = pingResponse.last_seen ? new Date(pingResponse.last_seen).toLocaleString('pt-BR') : 'Nunca';
                         }
 
                         // [REFEITO] Lógica de Disponibilidade e Inatividade
@@ -1174,5 +1172,86 @@ if (window.initRoutersPage) {
         window.addEventListener('beforeunload', () => {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         });
+    // Função global para forçar verificação de status de um roteador individual
+    window.refreshSingleRouter = async function(routerId) {
+        // Busca o roteador pelo ID
+        const router = allRouters.find(r => r.id === routerId);
+        if (!router) {
+            showNotification('Roteador não encontrado.', 'error');
+            return;
+        }
+        // Mostra preloader local
+        const row = routersTableBody.querySelector(`tr[data-router-id="${routerId}"]`);
+        let statusCell, latencyEl, uptimeEl, availEl, downtimeEl, lastSeenEl;
+        if (row) {
+            statusCell = row.cells[2];
+            latencyEl = document.getElementById(`latency-${routerId}`);
+            uptimeEl = document.getElementById(`uptime-${routerId}`);
+            availEl = document.getElementById(`availability-${routerId}`);
+            downtimeEl = document.getElementById(`downtime-${routerId}`);
+            lastSeenEl = document.getElementById(`last-seen-${routerId}`);
+            if (statusCell) statusCell.innerHTML = 'Verificando...';
+            if(latencyEl) latencyEl.textContent = '...';
+            if(uptimeEl) uptimeEl.textContent = '...';
+            if(availEl) availEl.textContent = '...';
+            if(downtimeEl) downtimeEl.textContent = '...';
+        }
+        try {
+            const pingResponse = await apiRequest(`/api/routers/${routerId}/ping`, 'POST', { period: document.getElementById('availabilityPeriodSelect')?.value || '24h' });
+            Object.assign(router, pingResponse);
+            // Atualiza status visual
+            if (row && pingResponse && pingResponse.status) {
+                if (pingResponse.is_maintenance) {
+                    statusCell.innerHTML = `<span class="status-dot status-maintenance"></span> Manutenção`;
+                } else {
+                    statusCell.innerHTML = `<span class="status-dot status-${pingResponse.status}"></span> ${pingResponse.status}`;
+                }
+                if (pingResponse.latency !== null && pingResponse.latency !== undefined) {
+                    latencyEl.textContent = `${pingResponse.latency} ms`;
+                    if (pingResponse.latency < 50) latencyEl.style.color = '#10b981';
+                    else if (pingResponse.latency < 150) latencyEl.style.color = '#f59e0b';
+                    else latencyEl.style.color = '#ef4444';
+                } else {
+                    latencyEl.textContent = '-'; latencyEl.style.color = '';
+                }
+                if (row && row.cells[4]) {
+                    row.cells[4].textContent = pingResponse.last_seen ? new Date(pingResponse.last_seen).toLocaleString('pt-BR') : 'Nunca';
+                }
+                if (lastSeenEl) {
+                    lastSeenEl.textContent = pingResponse.last_seen ? new Date(pingResponse.last_seen).toLocaleString('pt-BR') : 'Nunca';
+                }
+                if (pingResponse.status === 'online') {
+                    if (pingResponse.availability !== null && pingResponse.availability !== undefined) {
+                        availEl.textContent = `${pingResponse.availability}%`;
+                    } else {
+                        availEl.textContent = '-';
+                    }
+                    downtimeEl.textContent = '-';
+                    if (pingResponse.uptime_seconds !== null && pingResponse.uptime_seconds !== undefined && typeof formatUptime === 'function') {
+                        uptimeEl.textContent = formatUptime(pingResponse.uptime_seconds);
+                    } else {
+                        uptimeEl.textContent = '-';
+                    }
+                } else {
+                    availEl.textContent = '-';
+                    uptimeEl.textContent = '-';
+                    if (pingResponse.status_changed_at && typeof formatDowntime === 'function') {
+                        downtimeEl.textContent = formatDowntime(pingResponse.status_changed_at);
+                    }
+                }
+            }
+            showNotification('Status atualizado com sucesso.', 'success');
+        } catch (error) {
+            if (row) {
+                if (statusCell) statusCell.innerHTML = `<span class="status-dot status-offline"></span> erro`;
+                if(latencyEl) latencyEl.textContent = '-';
+                if(uptimeEl) uptimeEl.textContent = '-';
+                if(availEl) availEl.textContent = '-';
+                if(downtimeEl) downtimeEl.textContent = '-';
+            }
+            router.status = 'offline';
+            showNotification(`Erro ao atualizar status: ${error.message}`, 'error');
+        }
     };
-}
+};
+    // Fim da função global refreshSingleRouter
