@@ -31,6 +31,7 @@ const createTemplate = async (req, res) => {
     status_bg_image_url,
     status_h1_font_size,
     status_p_font_size,
+    is_system // [NOVO] Campo para definir se é padrão do sistema
   } = req.body;
 
   if (!name || !base_model || !login_type) {
@@ -65,14 +66,20 @@ const createTemplate = async (req, res) => {
     status_bg_image_url = `/uploads/Background_hotspot/${files.statusBgFile[0].filename}`;
   }
 
+  // [NOVO] Lógica de permissão para is_system (apenas master pode definir)
+  let isSystemValue = false;
+  if (req.user.role === 'master' && (is_system === 'true' || is_system === true)) {
+      isSystemValue = true;
+  }
+
   try {
     const query = `
-      INSERT INTO templates (name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id, postlogin_banner_id, form_background_color, font_family, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      INSERT INTO templates (name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id, postlogin_banner_id, form_background_color, font_family, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size, is_system)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *;
     `;
     // Usa as variáveis atualizadas que podem conter os caminhos dos novos arquivos
-    const values = [name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id || null, postlogin_banner_id || null, form_background_color, font_family, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size];
+    const values = [name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id || null, postlogin_banner_id || null, form_background_color, font_family, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size, isSystemValue];
     const result = await pool.query(query, values);
 
     await logAction({
@@ -121,6 +128,17 @@ const updateTemplate = async (req, res) => {
   if (isNaN(id)) {
       return res.status(400).json({ message: 'ID inválido.' });
   }
+
+  // [NOVO] Verificação prévia de existência e permissão de sistema
+  const checkResult = await pool.query('SELECT is_system FROM templates WHERE id = $1', [id]);
+  if (checkResult.rowCount === 0) {
+      return res.status(404).json({ message: 'Template não encontrado.' });
+  }
+  const currentIsSystem = checkResult.rows[0].is_system;
+
+  if (currentIsSystem && req.user.role !== 'master') {
+      return res.status(403).json({ message: 'Este é um template padrão do sistema e não pode ser editado por este utilizador.' });
+  }
   
   let {
     name,
@@ -144,15 +162,13 @@ const updateTemplate = async (req, res) => {
     status_bg_image_url,
     status_h1_font_size,
     status_p_font_size,
+    is_system // [NOVO]
   } = req.body;
 
-  // [NOVO] Verifica se é um template de sistema
-  const checkSystem = await pool.query('SELECT is_system FROM templates WHERE id = $1', [id]);
-  if (checkSystem.rows.length > 0 && checkSystem.rows[0].is_system) {
-      // Apenas master pode editar templates de sistema
-      if (req.user.role !== 'master') {
-          return res.status(403).json({ message: 'Este é um template padrão do sistema e não pode ser editado.' });
-      }
+  // [NOVO] Lógica para atualização de is_system (mantém o atual se não enviado)
+  let newIsSystem = currentIsSystem;
+  if (req.user.role === 'master' && is_system !== undefined) {
+      newIsSystem = (is_system === 'true' || is_system === true);
   }
 
   // Os arquivos enviados vêm de 'req.files'
@@ -189,7 +205,8 @@ const updateTemplate = async (req, res) => {
         login_type = $9, prelogin_banner_id = $10, postlogin_banner_id = $11,
         form_background_color = $12, font_family = $13, status_title = $15,
         status_message = $16, status_logo_url = $17, status_bg_color = $18,
-        status_bg_image_url = $19, status_h1_font_size = $20, status_p_font_size = $21
+        status_bg_image_url = $19, status_h1_font_size = $20, status_p_font_size = $21,
+        is_system = $22
       WHERE id = $14
       RETURNING *;
     `;
@@ -216,7 +233,8 @@ const updateTemplate = async (req, res) => {
         status_bg_color || null, 
         status_bg_image_url || null, 
         status_h1_font_size || null, 
-        status_p_font_size || null
+        status_p_font_size || null,
+        newIsSystem
     ];
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
