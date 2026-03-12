@@ -577,7 +577,7 @@ const listMediaFiles = async (req, res) => {
     switch (type) {
         case 'backgrounds':
             candidates = [
-                { path: '../PainelAdministradorProducao/public/uploads/background', urlSegment: 'background' },
+                { path: '../../public/uploads/background', urlSegment: 'background' }, // [CORREÇÃO] Caminho relativo correto para a raiz
                 { path: '../../public/uploads/Background', urlSegment: 'Background' },
                 { path: '../public/uploads/background', urlSegment: 'background' }
             ];
