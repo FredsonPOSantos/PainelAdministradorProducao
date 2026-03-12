@@ -128,12 +128,12 @@ const updateTemplate = async (req, res) => {
   if (isNaN(id)) {
       return res.status(400).json({ message: 'ID inválido.' });
   }
-  // console.log(`[TEMPLATE-UPDATE] A tentar atualizar ID: ${id}`);
+  console.log(`[TEMPLATE-UPDATE] Iniciando atualização para ID: ${id}`); // [LOG]
 
   // [NOVO] Verificação prévia de existência e permissão de sistema
   const checkResult = await pool.query('SELECT id, is_system FROM templates WHERE id = $1', [id]);
   if (checkResult.rowCount === 0) {
-      console.warn(`[TEMPLATE-UPDATE] ❌ Erro 404: O template ID ${id} não foi encontrado no SELECT inicial.`); 
+      console.warn(`[TEMPLATE-UPDATE] ❌ Erro 404: O template ID ${id} não foi encontrado na tabela 'templates' (SELECT inicial).`); 
       return res.status(404).json({ message: 'Template não encontrado.' });
   }
   const currentIsSystem = checkResult.rows[0].is_system;
@@ -141,12 +141,16 @@ const updateTemplate = async (req, res) => {
   if (currentIsSystem && req.user.role !== 'master') {
       return res.status(403).json({ message: 'Este é um template padrão do sistema e não pode ser editado por este utilizador.' });
   }
+
+  // [DIAGNÓSTICO] Ver o corpo da requisição para debugar campos ausentes
+  // console.log('[TEMPLATE-UPDATE] Body recebido:', req.body);
   
   let {
     name,
     base_model,
     login_background_url,
     logo_url,
+    logoUrl, // [CORREÇÃO] Captura o campo camelCase enviado pelo frontend
     status_logo_url, // [NOVO]
     primary_color,
     font_size,
@@ -171,6 +175,11 @@ const updateTemplate = async (req, res) => {
   let newIsSystem = currentIsSystem;
   if (req.user.role === 'master' && is_system !== undefined) {
       newIsSystem = (is_system === 'true' || is_system === true);
+  }
+
+  // [CORREÇÃO] Fallback para logo_url se vier como logoUrl
+  if (!logo_url && logoUrl) {
+      logo_url = logoUrl;
   }
 
   // Os arquivos enviados vêm de 'req.files'
@@ -235,8 +244,11 @@ const updateTemplate = async (req, res) => {
     values.push(id);
     const query = `UPDATE templates SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
 
+    console.log(`[TEMPLATE-UPDATE] Executando Query: UPDATE templates SET ... WHERE id = ${id}`); // [LOG]
+
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
+      console.warn(`[TEMPLATE-UPDATE] ❌ Erro 404: O comando UPDATE rodou mas retornou 0 linhas para o ID ${id}.`);
       return res.status(404).json({ message: 'Template não encontrado.' });
     }
 
