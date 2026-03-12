@@ -204,6 +204,14 @@
                 <input type="text" id="templateStatusPFontSize" placeholder="Ex: 1.1em" style="max-width: 100%;">
             </div>
 
+            <!-- [NOVO] Checkbox para definir como Padrão do Sistema -->
+            <div class="input-group checkbox-group" style="grid-column: 1 / -1; margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="templateIsSystem" name="is_system" style="width: auto;">
+                <label for="templateIsSystem" style="margin: 0; cursor: pointer;">
+                    Definir como Padrão do Sistema <small>(Protegido contra exclusão por não-masters)</small>
+                </label>
+            </div>
+
             <div class="modal-actions" style="grid-column: 1 / -1; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
                 <button type="button" id="cancelBtn" class="btn-secondary modal-close-btn-action">Cancelar</button>
                 <button type="submit" class="btn-primary">Guardar</button>

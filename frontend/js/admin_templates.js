@@ -142,6 +142,12 @@ if (window.initTemplatesPage) {
             formData.append('status_bg_color', document.getElementById('templateStatusBgColor').value || '');
             formData.append('status_h1_font_size', document.getElementById('templateStatusH1FontSize').value || '');
             formData.append('status_p_font_size', document.getElementById('templateStatusPFontSize').value || '');
+            
+            // [NOVO] Envia o estado de Padrão do Sistema
+            const isSystemCheckbox = document.getElementById('templateIsSystem');
+            if (isSystemCheckbox) {
+                formData.append('is_system', isSystemCheckbox.checked);
+            }
 
 
 
@@ -185,7 +191,14 @@ if (window.initTemplatesPage) {
                 closeModal();
                 loadTemplates();
             } catch (error) {
-                showNotification(`Erro: ${error.message}`, 'error');
+                // [CORREÇÃO] Se o erro for 404 (Não Encontrado), atualiza a lista para remover o item fantasma
+                if (error.message && error.message.includes('404')) {
+                    showNotification('Este template já não existe na base de dados. A atualizar a lista...', 'warning');
+                    closeModal();
+                    loadTemplates();
+                } else {
+                    showNotification(`Erro ao guardar: ${error.message}`, 'error');
+                }
             }
         };
 
@@ -272,6 +285,15 @@ if (window.initTemplatesPage) {
             // [NOVO] Reseta os campos de fundo de status
             statusBgSourceColor.checked = true;
             toggleStatusBgSourceInputs();
+
+            // [NOVO] Reseta e configura o checkbox de sistema
+            const isSystemCheckbox = document.getElementById('templateIsSystem');
+            if (isSystemCheckbox) {
+                isSystemCheckbox.checked = false;
+                const isMaster = window.currentUserProfile && window.currentUserProfile.role === 'master';
+                isSystemCheckbox.disabled = !isMaster;
+            }
+
             loadBannersIntoSelect();
             modal.classList.remove('hidden');
         };
@@ -300,6 +322,14 @@ if (window.initTemplatesPage) {
             statusBgUrlInput.value = template.status_bg_image_url || '';
             document.getElementById('templateStatusH1FontSize').value = template.status_h1_font_size || '';
             document.getElementById('templateStatusPFontSize').value = template.status_p_font_size || '';
+
+            // [NOVO] Define o estado do checkbox de sistema
+            const isSystemCheckbox = document.getElementById('templateIsSystem');
+            if (isSystemCheckbox) {
+                isSystemCheckbox.checked = template.is_system === true;
+                const isMaster = window.currentUserProfile && window.currentUserProfile.role === 'master';
+                isSystemCheckbox.disabled = !isMaster;
+            }
 
 
             videoUrlGroup.style.display = template.base_model === 'V2' ? 'block' : 'none';

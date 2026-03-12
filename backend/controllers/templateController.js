@@ -128,10 +128,12 @@ const updateTemplate = async (req, res) => {
   if (isNaN(id)) {
       return res.status(400).json({ message: 'ID inválido.' });
   }
+  console.log(`[TEMPLATE-UPDATE] A tentar atualizar ID: ${id} (Recebido: ${req.params.id})`); // [DEBUG]
 
   // [NOVO] Verificação prévia de existência e permissão de sistema
-  const checkResult = await pool.query('SELECT is_system FROM templates WHERE id = $1', [id]);
+  const checkResult = await pool.query('SELECT id, is_system FROM templates WHERE id = $1', [id]);
   if (checkResult.rowCount === 0) {
+      console.warn(`[TEMPLATE-UPDATE] Erro 404: O template com ID ${id} não existe na base de dados.`); // [DEBUG]
       return res.status(404).json({ message: 'Template não encontrado.' });
   }
   const currentIsSystem = checkResult.rows[0].is_system;
