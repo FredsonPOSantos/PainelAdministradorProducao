@@ -128,12 +128,12 @@ const updateTemplate = async (req, res) => {
   if (isNaN(id)) {
       return res.status(400).json({ message: 'ID inválido.' });
   }
-  console.log(`[TEMPLATE-UPDATE] A tentar atualizar ID: ${id} (Recebido: ${req.params.id})`); // [DEBUG]
+  // console.log(`[TEMPLATE-UPDATE] A tentar atualizar ID: ${id}`);
 
   // [NOVO] Verificação prévia de existência e permissão de sistema
   const checkResult = await pool.query('SELECT id, is_system FROM templates WHERE id = $1', [id]);
   if (checkResult.rowCount === 0) {
-      console.warn(`[TEMPLATE-UPDATE] Erro 404: O template com ID ${id} não existe na base de dados.`); // [DEBUG]
+      console.warn(`[TEMPLATE-UPDATE] ❌ Erro 404: O template ID ${id} não foi encontrado no SELECT inicial.`); 
       return res.status(404).json({ message: 'Template não encontrado.' });
   }
   const currentIsSystem = checkResult.rows[0].is_system;
@@ -199,45 +199,42 @@ const updateTemplate = async (req, res) => {
   }
 
   try {
-    const query = `
-      UPDATE templates
-      SET 
-        name = $1, base_model = $2, login_background_url = $3, logo_url = $4,
-        primary_color = $5, font_size = $6, font_color = $7, promo_video_url = $8,
-        login_type = $9, prelogin_banner_id = $10, postlogin_banner_id = $11,
-        form_background_color = $12, font_family = $13, status_title = $15,
-        status_message = $16, status_logo_url = $17, status_bg_color = $18,
-        status_bg_image_url = $19, status_h1_font_size = $20, status_p_font_size = $21,
-        is_system = $22
-      WHERE id = $14
-      RETURNING *;
-    `;
-    // Usa as variáveis atualizadas que podem conter os caminhos dos novos arquivos
-    // [CORREÇÃO] Aplica '|| null' em TODOS os campos opcionais para evitar erro de parâmetro 'undefined' no PostgreSQL
-    const values = [
-        name, 
-        base_model, 
-        login_background_url, 
-        logo_url, 
-        primary_color, 
-        font_size, 
-        font_color, 
-        promo_video_url, 
-        login_type, 
-        prelogin_banner_id || null, 
-        postlogin_banner_id || null, 
-        form_background_color || null, 
-        font_family || null, 
-        id, 
-        status_title || null, 
-        status_message || null, 
-        status_logo_url || null, 
-        status_bg_color || null, 
-        status_bg_image_url || null, 
-        status_h1_font_size || null, 
-        status_p_font_size || null,
-        newIsSystem
-    ];
+    // [CORREÇÃO] Construção dinâmica da query para evitar erros de índice ($1, $2...)
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    const addField = (col, val) => {
+        fields.push(`${col} = $${idx++}`);
+        values.push(val);
+    };
+
+    addField('name', name);
+    addField('base_model', base_model);
+    addField('login_background_url', login_background_url);
+    addField('logo_url', logo_url);
+    addField('primary_color', primary_color);
+    addField('font_size', font_size);
+    addField('font_color', font_color);
+    addField('promo_video_url', promo_video_url);
+    addField('login_type', login_type);
+    addField('prelogin_banner_id', prelogin_banner_id || null);
+    addField('postlogin_banner_id', postlogin_banner_id || null);
+    addField('form_background_color', form_background_color || null);
+    addField('font_family', font_family || null);
+    addField('status_title', status_title || null);
+    addField('status_message', status_message || null);
+    addField('status_logo_url', status_logo_url || null);
+    addField('status_bg_color', status_bg_color || null);
+    addField('status_bg_image_url', status_bg_image_url || null);
+    addField('status_h1_font_size', status_h1_font_size || null);
+    addField('status_p_font_size', status_p_font_size || null);
+    addField('is_system', newIsSystem);
+
+    // Adiciona o ID para o WHERE
+    values.push(id);
+    const query = `UPDATE templates SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Template não encontrado.' });

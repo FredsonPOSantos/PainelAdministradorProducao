@@ -57,7 +57,8 @@ if (window.initTemplatesPage) {
         const loadTemplates = async () => {
             tableBody.innerHTML = '<tr><td colspan="5">A carregar...</td></tr>';
             try {
-                const templates = await apiRequest('/api/templates');
+                // [CORREÇÃO] Adiciona timestamp para evitar cache do navegador e garantir lista fresca
+                const templates = await apiRequest(`/api/templates?t=${Date.now()}`);
                 tableBody.innerHTML = '';
                 if (templates.length === 0) { // [CORRIGIDO] A API retorna o array diretamente
                     tableBody.innerHTML = '<tr><td colspan="5">Nenhum template encontrado.</td></tr>';
@@ -154,7 +155,6 @@ if (window.initTemplatesPage) {
             // Lógica para logótipo
             if (logoSourceUpload.checked && logoFileInput.files[0]) {
                 formData.append('logoFile', logoFileInput.files[0]);
-            } else if (document.getElementById('templateLogoUrl').value) {
             } else {
                 formData.append('logoUrl', document.getElementById('templateLogoUrl').value || '');
             }
@@ -162,7 +162,6 @@ if (window.initTemplatesPage) {
             // Lógica para imagem de fundo
             if (bgSourceUpload.checked && bgFileInput.files[0]) {
                 formData.append('backgroundFile', bgFileInput.files[0]);
-            } else if (document.getElementById('templateBgUrl').value) {
             } else {
                 formData.append('login_background_url', document.getElementById('templateBgUrl').value || '');
             }
@@ -170,7 +169,6 @@ if (window.initTemplatesPage) {
             // [NOVO] Lógica para logótipo da página de status
             if (statusLogoSourceUpload.checked && statusLogoFileInput.files[0]) {
                 formData.append('statusLogoFile', statusLogoFileInput.files[0]);
-            } else if (document.getElementById('templateStatusLogoUrl').value) {
             } else {
                 formData.append('status_logo_url', document.getElementById('templateStatusLogoUrl').value || '');
             }
@@ -178,7 +176,7 @@ if (window.initTemplatesPage) {
             // [NOVO] Lógica para fundo da página de status
             if (statusBgSourceImage.checked && statusBgFileInput.files[0]) {
                 formData.append('statusBgFile', statusBgFileInput.files[0]);
-            } else if (statusBgSourceImage.checked) {
+            } else {
                 formData.append('status_bg_image_url', statusBgUrlInput.value || '');
             }
 
