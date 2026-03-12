@@ -118,7 +118,10 @@ const getAllTemplates = async (req, res) => {
  */
 const updateTemplate = async (req, res) => {
   const id = parseInt(req.params.id, 10); // [CORREÇÃO] Garante que o ID seja um número inteiro
-
+  if (isNaN(id)) {
+      return res.status(400).json({ message: 'ID inválido.' });
+  }
+  
   let {
     name,
     base_model,
@@ -191,8 +194,30 @@ const updateTemplate = async (req, res) => {
       RETURNING *;
     `;
     // Usa as variáveis atualizadas que podem conter os caminhos dos novos arquivos
-    // [CORREÇÃO] Garante que campos opcionais sejam null se undefined para evitar erros no banco
-    const values = [name, base_model, login_background_url, logo_url, primary_color, font_size, font_color, promo_video_url, login_type, prelogin_banner_id || null, postlogin_banner_id || null, form_background_color, font_family, id, status_title, status_message, status_logo_url, status_bg_color, status_bg_image_url, status_h1_font_size, status_p_font_size];
+    // [CORREÇÃO] Aplica '|| null' em TODOS os campos opcionais para evitar erro de parâmetro 'undefined' no PostgreSQL
+    const values = [
+        name, 
+        base_model, 
+        login_background_url, 
+        logo_url, 
+        primary_color, 
+        font_size, 
+        font_color, 
+        promo_video_url, 
+        login_type, 
+        prelogin_banner_id || null, 
+        postlogin_banner_id || null, 
+        form_background_color || null, 
+        font_family || null, 
+        id, 
+        status_title || null, 
+        status_message || null, 
+        status_logo_url || null, 
+        status_bg_color || null, 
+        status_bg_image_url || null, 
+        status_h1_font_size || null, 
+        status_p_font_size || null
+    ];
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Template não encontrado.' });
