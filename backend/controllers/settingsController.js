@@ -810,10 +810,11 @@ const testNotificationSettings = async (req, res) => {
 
         // Teste Email
         if (offline_report_emails) {
-            const emails = offline_report_emails.split(',').map(e => e.trim()).filter(e => e);
-            if (emails.length > 0) {
-                await sendEmail(emails[0], "Teste de Notificação Admin", "<p>O sistema de alertas por e-mail está configurado corretamente.</p>");
-                results.push(`E-mail: Enviado para ${emails[0]}`);
+            // [CORREÇÃO] O teste agora envia para TODOS os e-mails configurados, tal como o relatório real.
+            const recipients = offline_report_emails.split(',').map(e => e.trim()).filter(e => e).join(', ');
+            if (recipients) {
+                await sendEmail(recipients, "Teste de Notificação Admin", "<p>O sistema de alertas por e-mail está configurado corretamente. Esta mensagem foi enviada para toda a lista de distribuição.</p>");
+                results.push(`E-mail: Enviado para a lista [${recipients}]`);
             }
         }
 

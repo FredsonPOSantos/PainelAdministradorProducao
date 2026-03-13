@@ -74,13 +74,11 @@ const checkAndSendReport = async () => {
 
         // Email
         if (offline_report_emails) {
-            const emails = offline_report_emails.split(',').map(e => e.trim()).filter(e => e);
-            for (const email of emails) {
-                await sendEmail(email, `[ALERTA] Roteadores Offline - ${now}`, emailHtml); // sendEmail aceita HTML no 3º param se adaptado, ou texto
-                // Nota: Assumindo que seu sendEmail suporta HTML ou texto. Se for texto plano, o HTML acima ficará feio. 
-                // Se o seu sendEmail atual só suporta texto, você deve passar uma versão texto ou atualizar o sendEmail.
-                // O código atual do emailService.js usa 'text', mas o nodemailer suporta 'html'.
-                // Vou assumir que o 'emailService.js' no contexto pode ser ajustado ou o parâmetro 'text' será interpretado como corpo.
+            // [CORREÇÃO] Envia para todos os destinatários de uma só vez (separados por vírgula)
+            // Isso evita que o servidor SMTP bloqueie envios sequenciais rápidos ou que o loop falhe.
+            const recipients = offline_report_emails.split(',').map(e => e.trim()).filter(e => e).join(', ');
+            if (recipients) {
+                await sendEmail(recipients, `[ALERTA] Roteadores Offline - ${now}`, emailHtml);
             }
         }
 

@@ -35,6 +35,10 @@ if (process.env.REDIS_URL) {
                 isRedisAvailable = true;
             });
     
+            // [DIAGNÓSTICO] Mostra onde está a tentar conectar (mascara a senha por segurança)
+            const maskedUrl = process.env.REDIS_URL.replace(/:\/\/(.*)@/, '://****@');
+            console.log(`ℹ️ [REDIS] Iniciando conexão com: ${maskedUrl}`);
+
             await client.connect();
         } catch (e) {
             console.warn('⚠️ [REDIS] Não foi possível conectar. Usando cache em memória (fallback).');
