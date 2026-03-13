@@ -24,11 +24,9 @@ router.get(
   templateController.getAllTemplates
 );
 
-// [CORRIGIDO] Atualizar um template
-// A rota agora é um POST para que o multer processe o FormData primeiro.
-// O method-override (configurado no server.js) irá converter este POST para um PUT
-// antes de chegar ao controller, pois o frontend envia o campo _method='PUT'.
-router.post(
+// [CORREÇÃO] Alterado para PUT para corresponder à requisição do frontend.
+// O middleware de upload (multer) funciona corretamente com PUT.
+router.put(
   '/:id',
   [verifyToken, checkPermission('templates.update'), uploadMiddlewareHotspot],
   templateController.updateTemplate

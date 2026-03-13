@@ -124,11 +124,12 @@ const getAllTemplates = async (req, res) => {
  * @description Atualiza um template existente.
  */
 const updateTemplate = async (req, res) => {
+  console.log(`[TEMPLATE-UPDATE] 🚀 Recebida requisição PUT para ID: ${req.params.id}`); // [LOG DE DIAGNÓSTICO]
+
   const id = parseInt(req.params.id, 10); // [CORREÇÃO] Garante que o ID seja um número inteiro
   if (isNaN(id)) {
       return res.status(400).json({ message: 'ID inválido.' });
   }
-  console.log(`[TEMPLATE-UPDATE] Iniciando atualização para ID: ${id}`); // [LOG]
 
   // [NOVO] Verificação prévia de existência e permissão de sistema
   const checkResult = await pool.query('SELECT id, is_system FROM templates WHERE id = $1', [id]);
