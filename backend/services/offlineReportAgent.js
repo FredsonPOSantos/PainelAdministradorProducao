@@ -8,13 +8,13 @@ let reportInterval = null;
 const checkAndSendReport = async () => {
     try {
         // 1. Obter configurações
-        const settingsRes = await pool.query('SELECT offline_report_emails, telegram_bot_token, telegram_chat_id FROM system_settings WHERE id = 1');
+        const settingsRes = await pool.query('SELECT offline_report_emails, offline_report_schedule, telegram_bot_token, telegram_chat_id FROM system_settings WHERE id = 1');
         if (settingsRes.rows.length === 0) return;
         
-        const { offline_report_emails, telegram_bot_token, telegram_chat_id } = settingsRes.rows[0];
+        const { offline_report_emails, telegram_bot_token, telegram_chat_id, offline_report_schedule } = settingsRes.rows[0];
         
         // Se não houver destinatários configurados, aborta
-        if (!offline_report_emails && !telegram_chat_id) {
+        if ((!offline_report_emails && !telegram_chat_id) || !offline_report_schedule) {
             // console.log('[OFFLINE-REPORT] Nenhum destinatário configurado. Pulando.');
             return;
         }
@@ -87,17 +87,28 @@ const checkAndSendReport = async () => {
     }
 };
 
-const startReportScheduler = () => {
+const startReportScheduler = async () => {
+    // [MODIFICADO] Busca o agendamento do DB ao iniciar
+    let scheduleHours = [8, 14]; // Padrão
+    try {
+        const settingsRes = await pool.query('SELECT offline_report_schedule FROM system_settings WHERE id = 1');
+        if (settingsRes.rows.length > 0 && settingsRes.rows[0].offline_report_schedule) {
+            scheduleHours = settingsRes.rows[0].offline_report_schedule.split(',').map(h => parseInt(h.trim(), 10)).filter(h => !isNaN(h));
+        }
+    } catch (e) {
+        console.error('[SCHEDULER] Erro ao buscar agendamento inicial:', e.message);
+    }
+
     // Verifica a cada minuto
     reportInterval = setInterval(() => {
         const now = new Date();
-        // Executa às 08:00 e 14:00
-        if ((now.getHours() === 8 || now.getHours() === 14) && now.getMinutes() === 0) {
+        // [MODIFICADO] Executa nas horas definidas no banco de dados
+        if (scheduleHours.includes(now.getHours()) && now.getMinutes() === 0) {
             console.log('[SCHEDULER] Iniciando geração de relatório offline agendado...');
             checkAndSendReport();
         }
     }, 60000); // 60 segundos
-    console.log('✅ [SCHEDULER] Agente de relatórios offline iniciado (08:00 e 14:00).');
+    console.log(`✅ [SCHEDULER] Agente de relatórios offline iniciado. Horários: [${scheduleHours.join(', ')}]:00.`);
 };
 
 module.exports = { startReportScheduler };

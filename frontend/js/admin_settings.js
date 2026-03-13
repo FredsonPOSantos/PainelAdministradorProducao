@@ -533,9 +533,12 @@ window.initSettingsPage = () => {
                 // LOG ADICIONADO: Mostra a resposta completa ao guardar
                 console.log('%c[handleUnifiedAppearance] Resposta da API após guardar:', 'color: orange;', result);
 
-                if (result.success && result.data && result.data.settings) {
-                    window.systemSettings = result.data.settings;
-                    if (window.applyVisualSettings) window.applyVisualSettings(result.data.settings);
+                // [CORREÇÃO] Detecta as configurações retornadas em várias estruturas possíveis (root, data, ou data.settings)
+                const returnedSettings = result.settings || (result.data && result.data.settings) || result.data;
+
+                if (result.success && returnedSettings) {
+                    window.systemSettings = returnedSettings;
+                    if (window.applyVisualSettings) window.applyVisualSettings(returnedSettings);
                     // Recarrega as configurações para atualizar o estado inicial (`initialAppearanceSettings`)
                     await loadGeneralSettings(); 
                 }
@@ -595,7 +598,8 @@ window.initSettingsPage = () => {
             const data = {
                 offline_report_emails: document.getElementById('offlineReportEmails').value,
                 telegram_bot_token: document.getElementById('telegramBotToken').value,
-                telegram_chat_id: document.getElementById('telegramChatId').value
+                telegram_chat_id: document.getElementById('telegramChatId').value,
+                offline_report_schedule: document.getElementById('offlineReportSchedule').value
             };
 
             try {
@@ -683,7 +687,8 @@ window.initSettingsPage = () => {
                     // [NOVO] Campos de Notificações
                     'offlineReportEmails': settings.offline_report_emails,
                     'telegramBotToken': settings.telegram_bot_token,
-                    'telegramChatId': settings.telegram_chat_id
+                    'telegramChatId': settings.telegram_chat_id,
+                    'offlineReportSchedule': settings.offline_report_schedule
                 };
                 
                 for (const id in fields) {

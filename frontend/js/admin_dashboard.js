@@ -99,6 +99,15 @@ window.applyVisualSettings = (settings) => {
 
     const root = document.documentElement;
 
+    // [NOVO] Cria ou seleciona a tag de estilo para overrides dinâmicos
+    let styleTag = document.getElementById('dynamic-appearance-styles');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'dynamic-appearance-styles';
+        document.head.appendChild(styleTag);
+    }
+    let cssRules = ''; // Acumula as regras CSS
+
     // Mapeamento de configurações para variáveis CSS
     const styleMap = {
         'primary_color': '--primary-color',          // CORRIGIDO: Alinhado com o CSS em uso
@@ -121,8 +130,25 @@ window.applyVisualSettings = (settings) => {
     for (const key in styleMap) {
         if (settings[key] !== undefined && settings[key] !== null) {
             let value = settings[key];
+            
+            // [CORREÇÃO] Força o tamanho da fonte no 'body' para garantir acessibilidade sobre qualquer tema
             if (key === 'font_size') {
-                value = `${value}px`;
+                const fontSizePx = `${value}px`;
+                // Atualiza a variável para cálculos
+                root.style.setProperty(styleMap[key], fontSizePx);
+                // [ATUALIZADO] Adiciona regra CSS global para forçar o tamanho em tudo (incluindo sidebar e tabelas)
+                cssRules += `html, body, .sidebar, .sidebar-nav, .nav-item, .data-table, .stat-card { font-size: ${fontSizePx} !important; }`;
+                continue;
+            }
+
+            // [CORREÇÃO] Força a família da fonte no 'body'
+            if (key === 'font_family') {
+                // Atualiza a variável
+                root.style.setProperty(styleMap[key], value);
+                // [ATUALIZADO] Adiciona regra CSS global para forçar a fonte em elementos de formulário e sidebar
+                // Inputs e botões geralmente não herdam a fonte do body, por isso forçamos aqui.
+                cssRules += `html, body, input, select, textarea, button, .sidebar, .nav-item { font-family: ${value} !important; }`;
+                continue;
             }
             console.log(` -> Aplicando ${styleMap[key]} = ${value}`);
             root.style.setProperty(styleMap[key], value);
@@ -130,6 +156,9 @@ window.applyVisualSettings = (settings) => {
             console.log(` -> Chave '${key}' está nula ou indefinida. Pulando.`);
         }
     }
+
+    // [NOVO] Aplica todas as regras CSS acumuladas de uma só vez
+    styleTag.textContent = cssRules;
 
     // --- LÓGICA DE CONTRASTE INTELIGENTE (SMART CONTRAST) ---
     

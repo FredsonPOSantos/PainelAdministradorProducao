@@ -315,6 +315,13 @@ async function checkAndUpgradeSchema(client) {
         await client.query('ALTER TABLE system_settings ADD COLUMN offline_report_emails TEXT');
         console.log("   ✅ Coluna 'offline_report_emails' adicionada.");
     }
+    // [NOVO] Coluna para agendamento de relatórios
+    const offlineScheduleExists = await checkColumn('system_settings', 'offline_report_schedule');
+    if (!offlineScheduleExists) {
+        console.log("   -> Adicionando coluna 'offline_report_schedule' à tabela 'system_settings'...");
+        await client.query("ALTER TABLE system_settings ADD COLUMN offline_report_schedule VARCHAR(100) DEFAULT '8,14'");
+        console.log("   ✅ Coluna 'offline_report_schedule' adicionada.");
+    }
 
     const telegramTokenExists = await checkColumn('system_settings', 'telegram_bot_token');
     if (!telegramTokenExists) {

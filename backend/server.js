@@ -412,7 +412,7 @@ server.listen(PORT, async () => { // [MODIFICADO] Usa server.listen em vez de ap
   startNightlyTasks();
 
   // [NOVO] Inicia o agendador de relatórios offline (08:00 e 14:00)
-  startReportScheduler();
+  await startReportScheduler();
 
   // [NOVO] Regista o evento de início do servidor no log de auditoria
   await logAction({
