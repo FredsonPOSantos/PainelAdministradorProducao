@@ -18,7 +18,7 @@ async function sendEmail(to, subject, text) {
             from: process.env.EMAIL_FROM,
             to,
             subject,
-            text
+            html: text // [MODIFICADO] Usa a propriedade 'html' para suportar formatação
         });
         console.log('Email sent successfully');
     } catch (error) {

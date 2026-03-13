@@ -56,6 +56,20 @@ router.post(
     settingsController.updatePolicies
 );
 
+// [NOVO] ROTA PARA CONFIGURAÇÕES DE NOTIFICAÇÕES
+router.post(
+    '/notifications',
+    [verifyToken, checkPermission('settings.smtp')], // Reutiliza permissão de SMTP ou cria nova
+    settingsController.updateNotificationSettings
+);
+
+// [NOVO] ROTA PARA TESTAR NOTIFICAÇÕES
+router.post(
+    '/notifications/test',
+    [verifyToken, checkPermission('settings.smtp')],
+    settingsController.testNotificationSettings
+);
+
 // [NOVO] ROTAS PARA GESTÃO DE ARQUIVOS (MEDIA MANAGER)
 // Apenas Master deve ter acesso a exclusão permanente de arquivos
 router.get(

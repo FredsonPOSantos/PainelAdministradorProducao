@@ -14,6 +14,7 @@
     <button class="tab-link active admin-only" data-tab="tab-empresa">Meus Serviços</button>
     <button class="tab-link admin-only" data-tab="tab-hotspot">Portal Hotspot</button>
     <button class="tab-link admin-only" data-tab="tab-aparencia">Aparência Geral</button>
+    <button class="tab-link admin-only" data-tab="tab-notificacoes">Notificações</button> <!-- [NOVO] -->
     <!-- [ATUALIZADO V13.5.2] Removido master-only daqui para o JS controlar (permite DPO) -->
     <button class="tab-link admin-only" data-tab="tab-permissoes">Funções e Permissões</button>
     <button class="tab-link admin-only" data-tab="tab-politicas">Políticas de Segurança</button> <!-- [NOVO] Aba de Políticas -->
@@ -281,6 +282,49 @@
         </form>
     </div>
     
+    <!-- Aba Notificações [NOVO] -->
+    <div id="tab-notificacoes" class="tab-content admin-only">
+        <div class="content-section">
+            <div class="section-header">
+                <h4>Configuração de Alertas e Relatórios</h4>
+            </div>
+            
+            <form id="notificationSettingsForm">
+                <div class="content-section" style="box-shadow: none; padding-left: 0; padding-right: 0; margin-top: 0;">
+                    <h5 style="color: var(--primary-color); margin-bottom: 10px;">Relatório de Roteadores Offline (>24h)</h5>
+                    <p class="input-hint">O sistema enviará um relatório automático às 08:00 e às 14:00 se houver roteadores críticos.</p>
+                    
+                    <div class="input-group">
+                        <label for="offlineReportEmails">E-mails de Destino (separados por vírgula)</label>
+                        <input type="text" id="offlineReportEmails" placeholder="ex: ti@rota.com, gerente@rota.com">
+                    </div>
+                </div>
+
+                <hr style="border-color: var(--border-color); margin: 20px 0;">
+
+                <div class="content-section" style="box-shadow: none; padding-left: 0; padding-right: 0; margin-top: 0;">
+                    <h5 style="color: var(--primary-color); margin-bottom: 10px;">Integração Telegram</h5>
+                    <p class="input-hint">Receba alertas em tempo real no seu grupo do Telegram.</p>
+                    
+                    <div class="input-group">
+                        <label for="telegramBotToken">Token do Bot</label>
+                        <input type="text" id="telegramBotToken" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="telegramChatId">Chat ID (Grupo ou Utilizador)</label>
+                        <input type="text" id="telegramChatId" placeholder="-1001234567890">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="testNotificationBtn" class="btn-secondary">Testar Envio</button> <!-- [NOVO] -->
+                    <button type="submit" class="btn-primary">Salvar Configurações de Notificação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Aba 3: Portal Hotspot (Fase 2.4) -->
     <div id="tab-hotspot" class="tab-content admin-only master-only">
         <div class="content-section">

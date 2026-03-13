@@ -7,6 +7,8 @@ const fs = require('fs'); // Para lidar com caminhos de ficheiro e remoção
 const archiver = require('archiver'); // [NOVO] Para criar arquivos ZIP
 const sanitizeHtmlLib = require('sanitize-html'); // [SEGURANÇA] Biblioteca robusta de sanitização
 const { logAction } = require('../services/auditLogService');
+const { sendEmail } = require('../emailService'); // [NOVO]
+const { sendTelegramMessage } = require('../services/telegramService'); // [NOVO]
 
 // --- FASE 2.3: Configurações Gerais ---
 
@@ -16,7 +18,7 @@ const { logAction } = require('../services/auditLogService');
 const getGeneralSettings = async (req, res) => {
     try {
         const settings = await pool.query(
-            'SELECT company_name, logo_url, primary_color, background_color, font_color, font_family, font_size, background_image_url, modal_background_color, modal_font_color, modal_border_color, sidebar_color, login_background_color, login_form_background_color, login_font_color, login_button_color, login_logo_url, email_host, email_port, email_secure, email_user, email_from, nav_title_color, label_color, placeholder_color, tab_link_color, tab_link_active_color, terms_content, marketing_policy_content, admin_session_timeout, loader_enabled, loader_timeout FROM system_settings WHERE id = 1'
+            'SELECT company_name, logo_url, primary_color, background_color, font_color, font_family, font_size, background_image_url, modal_background_color, modal_font_color, modal_border_color, sidebar_color, login_background_color, login_form_background_color, login_font_color, login_button_color, login_logo_url, email_host, email_port, email_secure, email_user, email_from, nav_title_color, label_color, placeholder_color, tab_link_color, tab_link_active_color, terms_content, marketing_policy_content, admin_session_timeout, loader_enabled, loader_timeout, offline_report_emails, telegram_bot_token, telegram_chat_id FROM system_settings WHERE id = 1'
         ); 
 
         if (settings.rows.length === 0) {
@@ -763,6 +765,66 @@ const archiveMediaFiles = async (req, res) => {
     }
 };
 
+/**
+ * [NOVO] Atualiza as configurações de notificações (Email e Telegram).
+ */
+const updateNotificationSettings = async (req, res) => {
+    const { offline_report_emails, telegram_bot_token, telegram_chat_id } = req.body;
+
+    try {
+        const query = `
+            UPDATE system_settings 
+            SET offline_report_emails = $1, telegram_bot_token = $2, telegram_chat_id = $3
+            WHERE id = 1
+            RETURNING *`;
+        
+        const result = await pool.query(query, [offline_report_emails, telegram_bot_token, telegram_chat_id]);
+
+        await logAction({
+            req,
+            action: 'SETTINGS_UPDATE_NOTIFICATIONS',
+            status: 'SUCCESS',
+            description: `Utilizador "${req.user.email}" atualizou as configurações de notificações.`,
+        });
+
+        res.json({ success: true, message: 'Configurações de notificação atualizadas!', settings: result.rows[0] });
+    } catch (error) {
+        console.error('Erro ao atualizar notificações:', error);
+        res.status(500).json({ success: false, message: 'Erro interno ao salvar.' });
+    }
+};
+
+/**
+ * [NOVO] Testa as configurações de notificação (envia msg de teste).
+ */
+const testNotificationSettings = async (req, res) => {
+    const { offline_report_emails, telegram_bot_token, telegram_chat_id } = req.body;
+    let results = [];
+
+    try {
+        // Teste Telegram
+        if (telegram_bot_token && telegram_chat_id) {
+            const success = await sendTelegramMessage(telegram_bot_token, telegram_chat_id, "🔔 <b>Teste de Notificação</b>\nO sistema de alertas do Rota Hotspot está configurado corretamente.");
+            results.push(success ? "Telegram: Sucesso" : "Telegram: Falha (verifique token/chat ID)");
+        }
+
+        // Teste Email
+        if (offline_report_emails) {
+            const emails = offline_report_emails.split(',').map(e => e.trim()).filter(e => e);
+            if (emails.length > 0) {
+                await sendEmail(emails[0], "Teste de Notificação Admin", "<p>O sistema de alertas por e-mail está configurado corretamente.</p>");
+                results.push(`E-mail: Enviado para ${emails[0]}`);
+            }
+        }
+
+        if (results.length === 0) return res.json({ success: false, message: "Nenhum canal configurado para testar." });
+        res.json({ success: true, message: results.join(" | ") });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: `Erro ao testar: ${error.message}` });
+    }
+};
+
 // Exporta todas as funções do controller
 module.exports = {
     getGeneralSettings,
@@ -772,6 +834,8 @@ module.exports = {
     resetAppearanceSettings,
     updateSmtpSettings, // EXPORTA A NOVA FUNÇÃO
     updatePolicies, // [NOVO] EXPORTA A NOVA FUNÇÃO
+    updateNotificationSettings, // [NOVO]
+    testNotificationSettings, // [NOVO]
     listMediaFiles, // [NOVO]
     deleteMediaFile, // [NOVO]
     archiveMediaFiles // [NOVO]

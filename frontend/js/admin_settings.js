@@ -14,6 +14,7 @@ window.initSettingsPage = () => {
         const unifiedAppearanceForm = document.getElementById('unifiedAppearanceForm');
         const removeBackgroundBtn = document.getElementById('removeBackground');
         const smtpSettingsForm = document.getElementById('smtpSettingsForm'); // [NOVO] Seletor para o novo formulário
+        const notificationSettingsForm = document.getElementById('notificationSettingsForm'); // [NOVO]
         const removeLoginLogoBtn = document.getElementById('removeLoginLogo');
         const backgroundUploadInput = document.getElementById('backgroundUpload');
         const loginBgColorInput = document.getElementById('loginBackgroundColor');
@@ -584,6 +585,55 @@ window.initSettingsPage = () => {
             }
         };
 
+        // [NOVO] Handler para Notificações
+        const handleNotificationSettings = async (e) => {
+            e.preventDefault();
+            const btn = notificationSettingsForm.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = 'A guardar...';
+
+            const data = {
+                offline_report_emails: document.getElementById('offlineReportEmails').value,
+                telegram_bot_token: document.getElementById('telegramBotToken').value,
+                telegram_chat_id: document.getElementById('telegramChatId').value
+            };
+
+            try {
+                const result = await apiRequest('/api/settings/notifications', 'POST', data);
+                showNotification(result.message, 'success');
+            } catch (error) {
+                showNotification(`Erro: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Salvar Configurações de Notificação';
+            }
+        };
+
+        // [NOVO] Handler para Teste de Notificações
+        const testNotificationBtn = document.getElementById('testNotificationBtn');
+        if (testNotificationBtn) {
+            testNotificationBtn.addEventListener('click', async () => {
+                testNotificationBtn.disabled = true;
+                testNotificationBtn.textContent = 'A enviar...';
+                
+                const data = {
+                    offline_report_emails: document.getElementById('offlineReportEmails').value,
+                    telegram_bot_token: document.getElementById('telegramBotToken').value,
+                    telegram_chat_id: document.getElementById('telegramChatId').value
+                };
+
+                try {
+                    const result = await apiRequest('/api/settings/notifications/test', 'POST', data);
+                    showNotification(result.message, result.success ? 'success' : 'warning');
+                } catch (error) {
+                    showNotification(`Erro no teste: ${error.message}`, 'error');
+                } finally {
+                    testNotificationBtn.disabled = false;
+                    testNotificationBtn.textContent = 'Testar Envio';
+                }
+            });
+        }
+
         // --- Lógica de Carregamento de Dados ---
         const loadGeneralSettings = async () => {
             try {
@@ -630,6 +680,10 @@ window.initSettingsPage = () => {
                     'emailUser': settings.email_user,
                     'emailFrom': settings.email_from,
                     // A senha não é preenchida por segurança
+                    // [NOVO] Campos de Notificações
+                    'offlineReportEmails': settings.offline_report_emails,
+                    'telegramBotToken': settings.telegram_bot_token,
+                    'telegramChatId': settings.telegram_chat_id
                 };
                 
                 for (const id in fields) {
@@ -1124,6 +1178,10 @@ window.initSettingsPage = () => {
                 if (tabId === 'tab-lgpd' && !permissions['lgpd.read']) {
                 show = false;
             }
+            // [NOVO] Aba de Notificações (mesma permissão de SMTP ou Empresa)
+            if (tabId === 'tab-notificacoes' && !isMaster && !permissions['settings.smtp']) {
+                show = false;
+            }
             // [NOVO] Aba de Arquivos apenas para Master
             if (tabId === 'tab-arquivos' && !isMaster) {
                     show = false;
@@ -1140,6 +1198,9 @@ window.initSettingsPage = () => {
             }
             if (document.getElementById('tab-aparencia')?.style.display !== 'none') {
                 loadGeneralSettings();
+            }
+            if (document.getElementById('tab-notificacoes')?.style.display !== 'none') {
+                loadGeneralSettings(); // Usa a mesma função pois os dados vêm da mesma API
             }
             if (document.getElementById('tab-permissoes')?.style.display !== 'none') {
                 loadPermissionsMatrix();
@@ -1420,6 +1481,11 @@ window.initSettingsPage = () => {
         }
         if (archiveMediaBtn) {
             archiveMediaBtn.addEventListener('click', handleArchiveMedia);
+        }
+
+        // [NOVO] Listener para Notificações
+        if (notificationSettingsForm) {
+            notificationSettingsForm.addEventListener('submit', handleNotificationSettings);
         }
 
         // [NOVO] Listeners para o Modal de Perfis

@@ -308,6 +308,28 @@ async function checkAndUpgradeSchema(client) {
         console.log("   ✅ Coluna 'loader_timeout' adicionada.");
     }
 
+    // [NOVO] Colunas para Configurações de Notificações (Relatório Offline e Telegram)
+    const offlineEmailsExists = await checkColumn('system_settings', 'offline_report_emails');
+    if (!offlineEmailsExists) {
+        console.log("   -> Adicionando coluna 'offline_report_emails' à tabela 'system_settings'...");
+        await client.query('ALTER TABLE system_settings ADD COLUMN offline_report_emails TEXT');
+        console.log("   ✅ Coluna 'offline_report_emails' adicionada.");
+    }
+
+    const telegramTokenExists = await checkColumn('system_settings', 'telegram_bot_token');
+    if (!telegramTokenExists) {
+        console.log("   -> Adicionando coluna 'telegram_bot_token' à tabela 'system_settings'...");
+        await client.query('ALTER TABLE system_settings ADD COLUMN telegram_bot_token VARCHAR(255)');
+        console.log("   ✅ Coluna 'telegram_bot_token' adicionada.");
+    }
+
+    const telegramChatIdExists = await checkColumn('system_settings', 'telegram_chat_id');
+    if (!telegramChatIdExists) {
+        console.log("   -> Adicionando coluna 'telegram_chat_id' à tabela 'system_settings'...");
+        await client.query('ALTER TABLE system_settings ADD COLUMN telegram_chat_id VARCHAR(255)');
+        console.log("   ✅ Coluna 'telegram_chat_id' adicionada.");
+    }
+
     // [NOVO] Verifica e adiciona colunas para tickets públicos na tabela 'tickets'
     const ticketsTableExists = await checkTable('tickets');
     if (ticketsTableExists) {

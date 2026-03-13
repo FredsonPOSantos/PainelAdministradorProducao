@@ -71,6 +71,7 @@ const { logAction } = require('./services/auditLogService');
 const { logError } = require('./services/errorLogService'); // [NOVO] Importa o serviço de log de erros
 const { runDailyConsolidation } = require('./services/historyService'); // [NOVO] Serviço de Histórico
 const { checkSnmpStatus } = require('./services/snmpService'); // [NOVO] Serviço SNMP
+const { startReportScheduler } = require('./services/offlineReportAgent'); // [NOVO] Agente de Relatórios
 const verifyToken = require('./middlewares/authMiddleware'); // [NOVO] Importa middleware de auth
 const checkPermission = require('./middlewares/roleMiddleware'); // [NOVO] Importa middleware de permissão
 const authRoutes = require('./routes/auth');
@@ -409,6 +410,9 @@ server.listen(PORT, async () => { // [MODIFICADO] Usa server.listen em vez de ap
 
   // [NOVO] Inicia o agendador de tarefas noturnas
   startNightlyTasks();
+
+  // [NOVO] Inicia o agendador de relatórios offline (08:00 e 14:00)
+  startReportScheduler();
 
   // [NOVO] Regista o evento de início do servidor no log de auditoria
   await logAction({
