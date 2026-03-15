@@ -1539,51 +1539,72 @@ const initRouterDashboard = () => {
 
         const modalHtml = `
             <div id="${modalId}" class="modal-overlay hidden" style="z-index: 9999;">
-                <div class="modal-content large" style="max-width: 800px;">
-                    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #4B5563; padding-bottom: 15px;">
-                        <h3 style="margin: 0; color: #e5e7eb; font-size: 1.25rem;">Gestão Avançada - ${rName}</h3>
-                        <button class="modal-close-btn" style="background: none; border: none; color: #9CA3AF; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                <div class="modal-content large" style="max-width: 800px; padding: 0; display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;">
+                    
+                    <!-- Header Integrado com Abas -->
+                    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; background: var(--background-dark); padding: 20px 25px 0 25px; margin: 0; border-bottom: 1px solid var(--border-color);">
+                        <div style="flex: 1;">
+                            <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1.25rem;"><i class="fas fa-tools" style="margin-right: 8px; color: var(--primary-color);"></i>Gestão Avançada - ${rName}</h3>
+                            <div class="tab-nav" style="border-bottom: none; display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: -1px;">
+                                <button class="tab-link active" onclick="switchMgmtTab(event, 'diag')" style="padding: 10px 15px; background: var(--background-medium); border: 1px solid var(--border-color); border-bottom: 1px solid var(--background-medium); border-radius: 6px 6px 0 0; color: var(--primary-color); font-weight: bold; cursor: pointer;">Diagnóstico</button>
+                                <button class="tab-link" onclick="switchMgmtTab(event, 'wifi')" style="padding: 10px 15px; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--text-secondary); cursor: pointer;">Wi-Fi</button>
+                                <button class="tab-link" onclick="switchMgmtTab(event, 'health')" style="padding: 10px 15px; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--text-secondary); cursor: pointer;">Hardware</button>
+                                <button class="tab-link" onclick="switchMgmtTab(event, 'backup')" style="padding: 10px 15px; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--text-secondary); cursor: pointer;">Backup</button>
+                                <button class="tab-link" onclick="switchMgmtTab(event, 'system')" style="padding: 10px 15px; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--text-secondary); cursor: pointer;">Sistema</button>
+                            </div>
+                        </div>
+                        <button class="modal-close-btn" style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
                     </div>
                     
-                    <div class="tab-nav" style="margin-bottom: 20px; border-bottom: 1px solid #4B5563; display: flex; gap: 10px;">
-                        <button class="tab-link active" onclick="switchMgmtTab(event, 'diag')" style="padding: 10px 15px; background: none; border: none; color: #9CA3AF; cursor: pointer; border-bottom: 2px solid transparent;">Diagnóstico</button>
-                        <button class="tab-link" onclick="switchMgmtTab(event, 'health')" style="padding: 10px 15px; background: none; border: none; color: #9CA3AF; cursor: pointer; border-bottom: 2px solid transparent;">Hardware</button>
-                        <button class="tab-link" onclick="switchMgmtTab(event, 'backup')" style="padding: 10px 15px; background: none; border: none; color: #9CA3AF; cursor: pointer; border-bottom: 2px solid transparent;">Backup</button>
-                        <button class="tab-link" onclick="switchMgmtTab(event, 'system')" style="padding: 10px 15px; background: none; border: none; color: #9CA3AF; cursor: pointer; border-bottom: 2px solid transparent;">Sistema</button>
-                    </div>
-
-                    <!-- Aba Diagnóstico -->
-                    <div id="tab-diag" class="mgmt-tab-content">
-                        <h4 style="color: #e5e7eb; margin-bottom: 10px;">Ferramenta de Ping</h4>
-                        <div class="input-group" style="display:flex; gap:10px; align-items:center; margin-bottom: 15px;">
-                            <input type="text" id="pingTarget" placeholder="IP ou Domínio (ex: 8.8.8.8)" style="flex:1; padding: 10px; background: #374151; border: 1px solid #4B5563; color: white; border-radius: 4px;">
-                            <button class="btn-primary" onclick="runPing()" style="padding: 10px 20px;">Executar</button>
+                    <!-- Container Scrollável para o Conteúdo -->
+                    <div class="mgmt-tabs-container" style="flex: 1; overflow-y: auto; padding: 25px; background: var(--background-medium);">
+                        
+                        <!-- Aba Diagnóstico -->
+                        <div id="tab-diag" class="mgmt-tab-content" style="display: block;">
+                            <h4 style="color: var(--text-primary); margin-bottom: 10px;">Ferramenta de Ping</h4>
+                            <div class="input-group" style="display:flex; gap:10px; align-items:center; margin-bottom: 15px; max-width: 100%;">
+                                <input type="text" id="pingTarget" placeholder="IP ou Domínio (ex: 8.8.8.8)" style="flex:1; max-width: none; margin: 0;">
+                                <button class="btn-primary" onclick="runPing()" style="width: auto; margin: 0;"><i class="fas fa-play"></i> Executar</button>
+                            </div>
+                            <pre id="pingResult" style="background: var(--background-dark); padding:15px; border-radius:6px; min-height:150px; color:#10b981; font-family:monospace; margin-top:10px; border: 1px solid var(--border-color); overflow: auto;"></pre>
                         </div>
-                        <pre id="pingResult" style="background:#111827; padding:15px; border-radius:6px; min-height:150px; color:#10b981; font-family:monospace; margin-top:10px; border: 1px solid #374151; overflow: auto;"></pre>
-                    </div>
 
-                    <!-- Aba Hardware -->
-                    <div id="tab-health" class="mgmt-tab-content hidden">
-                        <div style="margin-bottom: 15px;"><button class="btn-secondary" onclick="checkHealth()">Atualizar Leitura</button></div>
-                        <div id="healthResult" style="margin-top:15px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                            <p>Carregando...</p>
+                        <!-- Aba Wi-Fi -->
+                        <div id="tab-wifi" class="mgmt-tab-content hidden" style="display: none;">
+                            <h4 style="color: var(--text-primary); margin-bottom: 10px;">Configuração de Redes Sem Fio</h4>
+                            <div style="margin-bottom: 15px;"><button class="btn-secondary" onclick="listWifiInterfaces()" style="width: auto;"><i class="fas fa-sync-alt"></i> Carregar Interfaces Wi-Fi</button></div>
+                            <div id="wifiList" style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
+                                <p style="color: var(--text-secondary); text-align:center; padding: 20px;">Clique no botão acima para listar as redes e alterar o SSID.</p>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Aba Backup -->
-                    <div id="tab-backup" class="mgmt-tab-content hidden">
-                        <div style="display:flex; gap:10px; margin-bottom:20px; align-items:center;">
-                            <input type="text" id="backupName" placeholder="Nome do Backup (opcional)" style="flex:1; padding: 10px; background: #374151; border: 1px solid #4B5563; color: white; border-radius: 4px;">
-                            <button class="btn-primary" onclick="createBackup()" style="padding: 10px 20px;">Criar Backup</button>
+                        <!-- Aba Hardware -->
+                        <div id="tab-health" class="mgmt-tab-content hidden" style="display: none;">
+                            <div style="margin-bottom: 15px;"><button class="btn-secondary" onclick="checkHealth()" style="width: auto;"><i class="fas fa-sync-alt"></i> Atualizar Leitura</button></div>
+                            <div id="healthResult" style="margin-top:15px; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px;">
+                                <p style="color: var(--text-secondary);">Carregando...</p>
+                            </div>
                         </div>
-                        <div id="backupList" style="max-height:300px; overflow-y:auto;"></div>
-                    </div>
 
-                    <!-- Aba Sistema -->
-                    <div id="tab-system" class="mgmt-tab-content hidden">
-                        <h4>Ações do Sistema</h4>
-                        <div class="form-actions" style="justify-content: flex-start; border-top:none; padding-top:15px;">
-                            <button class="btn-danger" style="background-color: #ef4444; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 14px;" onclick="window.handleRebootRouter('${routerId}', '${safeRName}')"><i class="fas fa-power-off"></i> Reiniciar Roteador</button>
+                        <!-- Aba Backup -->
+                        <div id="tab-backup" class="mgmt-tab-content hidden" style="display: none;">
+                            <div class="input-group" style="display:flex; gap:10px; margin-bottom:20px; align-items:center; max-width: 100%;">
+                                <input type="text" id="backupName" placeholder="Nome do Backup (opcional)" style="flex:1; max-width: none; margin: 0;">
+                                <button class="btn-primary" onclick="createBackup()" style="width: auto; margin: 0;"><i class="fas fa-save"></i> Criar Backup</button>
+                            </div>
+                            <div id="backupList" class="table-container" style="max-height: 300px;"></div>
+                        </div>
+
+                        <!-- Aba Sistema -->
+                        <div id="tab-system" class="mgmt-tab-content hidden" style="display: none;">
+                            <h4 style="color: var(--text-primary); margin-bottom: 15px;">Ações do Sistema</h4>
+                            <div class="form-actions" style="justify-content: flex-start; border-top:none; padding-top:0; flex-direction: column; align-items: flex-start; gap: 15px;">
+                                <button class="btn-secondary" style="width: auto;" onclick="window.handleRebootRouter('${routerId}', '${safeRName}')"><i class="fas fa-power-off"></i> Reiniciar Roteador</button>
+                                
+                                <div style="width: 100%; height: 1px; background: var(--border-color); margin: 10px 0;"></div>
+                                <h5 style="color: #ef4444; margin: 0;">Zona de Perigo</h5>
+                                <button class="btn-danger" style="width: auto; background-color: #dc2626; color: white;" title="CUIDADO EXTREMO: Esta ação apagará todas as configurações e isolará o roteador da rede!" onclick="window.handleResetConfig('${routerId}')"><i class="fas fa-exclamation-triangle"></i> Resetar Configuração (Factory Reset)</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1611,18 +1632,45 @@ const initRouterDashboard = () => {
 
         // Funções internas do modal
         window.switchMgmtTab = (event, tab) => {
-            document.querySelectorAll('.mgmt-tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
-            document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-link').forEach(el => {
-                el.style.color = '#9CA3AF';
+            const modalContainer = document.getElementById('managementModal');
+            if (!modalContainer) return;
+            
+            // [CORREÇÃO] Força a ocultação com display: none para garantir a troca isolada
+            modalContainer.querySelectorAll('.mgmt-tab-content').forEach(el => {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+            });
+            
+            // Mostra apenas o conteúdo da aba clicada
+            const targetContent = modalContainer.querySelector(`#tab-${tab}`);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+                targetContent.style.display = 'block';
+            }
+
+            // Remove os estilos de ativo das outras abas
+            modalContainer.querySelectorAll('.tab-link').forEach(el => {
+                el.classList.remove('active');
+                el.style.color = 'var(--text-secondary)';
+                el.style.background = 'transparent';
+                el.style.borderColor = 'transparent';
                 el.style.borderBottomColor = 'transparent';
             });
-            event.currentTarget.classList.add('active'); // [CORREÇÃO] Usa currentTarget para garantir que o botão receba a classe, não o ícone
-            event.currentTarget.style.color = '#3b82f6';
-            event.currentTarget.style.borderBottomColor = '#3b82f6';
+            
+            // Adiciona o estilo de ativo na aba clicada
+            const btn = event.currentTarget;
+            if (btn) {
+                btn.classList.add('active'); 
+                btn.style.color = 'var(--primary-color)';
+                btn.style.background = 'var(--background-medium)';
+                btn.style.border = '1px solid var(--border-color)';
+                btn.style.borderBottom = '1px solid var(--background-medium)';
+                btn.style.fontWeight = 'bold';
+            }
+            
             if (tab === 'health') checkHealth();
             if (tab === 'backup') listBackups();
+            if (tab === 'wifi') listWifiInterfaces(); // Carrega automaticamente se já autenticado
         };
 
         // [NOVO] Helper para garantir autenticação antes de ações
@@ -1679,6 +1727,47 @@ const initRouterDashboard = () => {
             }
         };
 
+        // [NOVO] Listar e Editar Wi-Fi
+        window.listWifiInterfaces = async () => {
+            if (!await ensureAuth("Gestão de Wi-Fi")) return;
+            const div = document.getElementById('wifiList');
+            div.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> A carregar interfaces sem fio...</div>';
+            try {
+                const res = await apiRequest(`/api/routers/${routerId}/wifi-config`, 'POST', { ...window.tempApiCredentials, action: 'list' });
+                if (res.success && res.data.length > 0) {
+                    div.innerHTML = res.data.map(iface => {
+                        const safeId = String(iface.id).replace(/[^a-zA-Z0-9]/g, ''); // Remove asteriscos do ID para usar no HTML
+                        return `
+                        <div style="background: var(--background-dark); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 150px;">
+                                <strong style="color: var(--text-primary); font-size: 1.1em;"><i class="fas fa-wifi" style="color: var(--primary-color); margin-right:5px;"></i> ${iface.name}</strong> 
+                                <br><small style="color: var(--text-secondary);">Driver: ${iface.type}</small>
+                            </div>
+                            <div style="flex: 2; display: flex; gap: 10px; min-width: 250px;">
+                                <input type="text" id="ssid_input_${safeId}" value="${iface.ssid}" placeholder="Nome da Rede (SSID)" style="flex: 1; padding: 8px 12px; background: var(--background-medium); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; font-weight: bold; margin: 0; max-width: none;">
+                                <button class="btn-primary" onclick="changeSsid('${iface.id}', 'ssid_input_${safeId}')" title="Aplicar Novo SSID" style="width: auto; margin: 0;"><i class="fas fa-save"></i> Salvar</button>
+                            </div>
+                        </div>
+                    `}).join('');
+                } else {
+                    div.innerHTML = '<p style="text-align:center; padding:20px; color:#f59e0b;"><i class="fas fa-exclamation-circle"></i> Nenhuma interface Wi-Fi encontrada neste roteador.</p>';
+                }
+            } catch (e) { div.innerHTML = '<p style="color:#ef4444; text-align:center;">Erro: ' + e.message + '</p>'; }
+        };
+
+        window.changeSsid = async (interfaceId, inputId) => {
+            if (!await ensureAuth("Alterar SSID")) return;
+            const newSsid = document.getElementById(inputId).value.trim();
+            if (!newSsid) return alert('O SSID não pode estar vazio.');
+            
+            try {
+                const res = await apiRequest(`/api/routers/${routerId}/wifi-config`, 'POST', { 
+                    ...window.tempApiCredentials, action: 'set_ssid', interfaceId, ssid: newSsid 
+                });
+                alert(res.message);
+            } catch (e) { alert('Erro: ' + e.message); }
+        };
+
         window.checkHealth = async () => {
             if (!await ensureAuth("Ler Sensores de Hardware")) return;
             const div = document.getElementById('healthResult');
@@ -1713,9 +1802,9 @@ const initRouterDashboard = () => {
                         let voltageDisplay = healthData.voltage;
                         if (!String(voltageDisplay).toLowerCase().includes('v')) voltageDisplay += 'V';
                         healthHTML += `
-                            <div class="stat-card" style="background:#1f2937; padding:20px; text-align:center; border-radius: 8px; border: 1px solid #374151;">
-                                <h3 style="color: #9CA3AF; font-size: 0.9rem; margin-bottom: 5px;">Voltagem</h3>
-                                <p style="font-size:1.8rem; color:#3b82f6; font-weight: bold; margin: 0;">${voltageDisplay}</p>
+                            <div class="stat-card" style="background: var(--background-dark); padding:20px; text-align:center; border-radius: 8px; border: 1px solid var(--border-color); flex-direction: column; justify-content: center;">
+                                <h3 style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 5px;">Voltagem</h3>
+                                <p style="font-size:1.8rem; color: var(--primary-color); font-weight: bold; margin: 0;">${voltageDisplay}</p>
                             </div>
                         `;
                         hasData = true;
@@ -1727,9 +1816,9 @@ const initRouterDashboard = () => {
                         let tempDisplay = tempValue;
                         if (!String(tempDisplay).includes('C')) tempDisplay += '°C';
                         healthHTML += `
-                            <div class="stat-card" style="background:#1f2937; padding:20px; text-align:center; border-radius: 8px; border: 1px solid #374151;">
-                                <h3 style="color: #9CA3AF; font-size: 0.9rem; margin-bottom: 5px;">Temperatura</h3>
-                                <p style="font-size:1.8rem; color:#e48315; font-weight: bold; margin: 0;">${tempDisplay}</p>
+                            <div class="stat-card" style="background: var(--background-dark); padding:20px; text-align:center; border-radius: 8px; border: 1px solid var(--border-color); flex-direction: column; justify-content: center;">
+                                <h3 style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 5px;">Temperatura</h3>
+                                <p style="font-size:1.8rem; color: #e48315; font-weight: bold; margin: 0;">${tempDisplay}</p>
                             </div>
                         `;
                         hasData = true;
@@ -1751,17 +1840,15 @@ const initRouterDashboard = () => {
             try {
                 const res = await apiRequest(`/api/routers/${routerId}/backups`, 'POST', { ...window.tempApiCredentials, action: 'list' });
                 if (res.success && res.data.length > 0) {
-                    div.innerHTML = '<table class="client-table"><thead><tr><th>Nome</th><th>Tamanho</th><th>Data</th><th>Ações</th></tr></thead><tbody>' + 
+                    div.innerHTML = '<table class="client-table" style="width: 100%; border-collapse: collapse;"><thead><tr style="text-align: left; border-bottom: 1px solid var(--border-color);"><th>Nome</th><th>Tamanho</th><th>Data</th><th style="text-align: right;">Ações</th></tr></thead><tbody>' + 
                     res.data.map(f => `
-                        <tr>
-                            <td>${f.name}</td>
-                            <td>${f.size ? (f.size / 1024).toFixed(1) + ' KB' : 'N/A'}</td>
-                            <td>${f['creation-time'] || f['last-modified'] || 'N/A'}</td>
-                            <td class="action-buttons">
-                                <!-- [CORREÇÃO] Removido btn-sm -->
-                                <button class="btn-primary" onclick="restoreBackup('${f.name.replace(/'/g, "\\'")}')" title="Restaurar"><i class="fas fa-undo"></i></button>
-                                <!-- [CORREÇÃO] Usa 'btn-delete' para o ícone de lixeira -->
-                                <button class="btn-delete" style="background-color: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;" onclick="deleteBackup('${String(f['.id'] || f.name).replace(/'/g, "\\'")}')" title="Excluir"><i class="fas fa-trash-alt"></i></button>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 10px 5px;">${f.name}</td>
+                            <td style="padding: 10px 5px;">${f.size ? (f.size / 1024).toFixed(1) + ' KB' : 'N/A'}</td>
+                            <td style="padding: 10px 5px;">${f['creation-time'] || f['last-modified'] || 'N/A'}</td>
+                            <td class="action-buttons" style="padding: 10px 5px; display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-primary" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;" onclick="restoreBackup('${f.name.replace(/'/g, "\\'")}')" title="Restaurar"><i class="fas fa-undo"></i></button>
+                                <button class="btn-delete" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;" onclick="deleteBackup('${String(f['.id'] || f.name).replace(/'/g, "\\'")}')" title="Excluir"><i class="fas fa-trash-alt"></i></button>
                             </td>
                         </tr>
                     `).join('') + '</tbody></table>';
@@ -1801,6 +1888,24 @@ const initRouterDashboard = () => {
                 await apiRequest(`/api/routers/${routerId}/backups`, 'POST', { ...window.tempApiCredentials, action: 'delete', fileName: id });
                 listBackups();
             } catch (e) { alert('Erro: ' + e.message); }
+        };
+
+        // [NOVO] Função de Reset
+        window.handleResetConfig = async (id) => {
+            // Fallback de segurança caso a função showConfirmationModal não esteja carregada
+            const confirmFunc = typeof showConfirmationModal === 'function' 
+                ? async () => await showConfirmationModal('ATENÇÃO EXTREMA: Esta ação irá APAGAR TODAS AS CONFIGURAÇÕES do roteador, incluindo regras de rede, Hotspot e comunicação com o painel. O roteador ficará isolado com configurações de fábrica.\n\nDeseja REALMENTE prosseguir?', 'PERIGO: Reset de Fábrica')
+                : async () => confirm('ATENÇÃO EXTREMA: Esta ação apaga TUDO. Deseja prosseguir?');
+
+            const confirmed = await confirmFunc();
+            if (!confirmed) return;
+
+            if (!await ensureAuth("Reset de Fábrica")) return;
+
+            try {
+                const res = await apiRequest(`/api/routers/${id}/reset-config`, 'POST', window.tempApiCredentials);
+                alert(res.message);
+            } catch (e) { alert('Erro fatal: ' + e.message); }
         };
     };
 

@@ -41,6 +41,10 @@ router.post('/:id/diagnostics', verifyToken, checkPermission('routers.read'), ro
 router.post('/:id/hardware-health', verifyToken, checkPermission('routers.read'), routerController.getHardwareHealth);
 router.post('/:id/backups', verifyToken, checkPermission('routers.update'), routerController.manageBackups);
 
+// [NOVO] Rotas de Gestão Extrema e Wi-Fi
+router.post('/:id/wifi-config', verifyToken, checkPermission('routers.update'), routerController.manageWifi);
+router.post('/:id/reset-config', verifyToken, checkPermission('routers.update'), routerController.resetRouterConfig);
+
 // [NOVO] Rota para obter o status de todos os roteadores para a página de monitoramento
 router.get('/status', verifyToken, checkPermission('routers.monitoring.read'), routerController.getRoutersStatus);
 

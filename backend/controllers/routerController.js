@@ -1505,6 +1505,133 @@ const manageBackups = async (req, res) => {
 };
 
 /**
+ * [NOVO] Gestão de Wi-Fi (Listar Interfaces e Alterar SSID)
+ */
+const manageWifi = async (req, res) => {
+    const { id } = req.params;
+    const { username, password, action, interfaceId, ssid } = req.body;
+
+    let client = null;
+
+    try {
+        const routerResult = await pool.query('SELECT ip_address, api_port FROM routers WHERE id = $1', [id]);
+        if (routerResult.rowCount === 0) return res.status(404).json({ message: 'Roteador não encontrado.' });
+        const { ip_address, api_port } = routerResult.rows[0];
+
+        client = new RouterOSClient({ 
+            host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 45 
+        });
+        client.setMaxListeners(20);
+        client.on('error', (err) => console.error(`[ROUTER-WIFI] Erro: ${err.message}`));
+
+        await client.connect();
+
+        if (action === 'list') {
+            let data = [];
+            let type = 'legacy';
+            
+            // Tenta descobrir o pacote wireless ativo
+            try {
+                data = await client.write('/interface/wireless/print');
+            } catch (e) {
+                try {
+                    data = await client.write('/interface/wifi/print');
+                    type = 'wifi';
+                } catch (e2) {
+                    data = await client.write('/interface/wifiwave2/print');
+                    type = 'wifi';
+                }
+            }
+
+            // Formata o retorno para o frontend
+            const formattedData = data.map(iface => ({
+                id: iface['.id'],
+                name: iface.name,
+                ssid: iface.ssid || iface['configuration.ssid'] || 'N/A',
+                type: type
+            }));
+
+            res.json({ success: true, data: formattedData });
+
+        } else if (action === 'set_ssid') {
+            if (!interfaceId || !ssid) {
+                return res.status(400).json({ message: 'ID da interface e novo SSID são obrigatórios.' });
+            }
+
+            // Tenta aplicar o SSID dependendo do pacote ativo
+            try {
+                await client.write('/interface/wireless/set', [`=.id=${interfaceId}`, `=ssid=${ssid}`]);
+            } catch (e) {
+                try {
+                    await client.write('/interface/wifi/set', [`=.id=${interfaceId}`, `=configuration.ssid=${ssid}`]);
+                } catch (e2) {
+                    try {
+                        await client.write('/interface/wifiwave2/set', [`=.id=${interfaceId}`, `=configuration.ssid=${ssid}`]);
+                    } catch (e3) {
+                        throw new Error("Não foi possível alterar o SSID. Verifique se a interface suporta esta ação.");
+                    }
+                }
+            }
+            
+            await logAction({
+                req, action: 'ROUTER_WIFI_UPDATE', status: 'SUCCESS',
+                description: `Utilizador alterou o SSID da interface ${interfaceId} no roteador ID ${id}.`,
+                target_type: 'router', target_id: id
+            });
+
+            res.json({ success: true, message: 'SSID alterado com sucesso! A rede Wi-Fi irá reiniciar rapidamente.' });
+        }
+
+    } catch (error) {
+        console.error(`Erro em manageWifi (Router ${id}):`, error.message);
+        if (error.message && error.message.toLowerCase().includes('timeout')) {
+            return res.status(504).json({ message: 'Gateway Timeout: O roteador não respondeu a tempo.' });
+        }
+        res.status(500).json({ message: error.message || 'Erro desconhecido ao gerir Wi-Fi.' });
+    } finally {
+        if (client) {
+            client.removeAllListeners();
+            try { client.close(); } catch (e) {}
+        }
+    }
+};
+
+/**
+ * [NOVO] Executa o Reset de Configuração (Factory Reset)
+ */
+const resetRouterConfig = async (req, res) => {
+    const { id } = req.params;
+    const { username, password } = req.body;
+
+    try {
+        const routerResult = await pool.query('SELECT ip_address, api_port FROM routers WHERE id = $1', [id]);
+        if (routerResult.rowCount === 0) return res.status(404).json({ message: 'Roteador não encontrado.' });
+        const { ip_address, api_port } = routerResult.rows[0];
+
+        const client = new RouterOSClient({ host: ip_address, user: username, password: password, port: api_port || 8797, keepalive: false, timeout: 30 });
+        
+        await client.connect();
+        
+        // Envia o comando de reset sem manter configurações padrão e sem backup
+        try {
+            await client.write('/system/reset-configuration', ['=no-defaults=yes', '=skip-backup=yes']);
+        } catch (e) {
+            // Ignora erro de conexão fechada, esperado durante o reset
+            if (!e.message.includes('closed') && !e.message.includes('ended') && !e.message.includes('ECONNRESET')) throw e;
+        } finally {
+            client.close();
+        }
+
+        await logAction({ req, action: 'ROUTER_RESET', status: 'SUCCESS', description: `Comando de RESET enviado para o roteador ID ${id}.`, target_type: 'router', target_id: id });
+
+        res.json({ success: true, message: 'Comando de reset de fábrica enviado! O roteador está a reiniciar e perderá todas as configurações.' });
+    } catch (error) {
+        console.error(`Erro ao resetar roteador ${id}:`, error.message);
+        res.status(500).json({ message: `Erro ao resetar: ${error.message}` });
+    }
+};
+
+/**
  * [NOVO] Gera um relatório de uptime/disponibilidade para o período selecionado.
  * Baseado na tabela 'router_uptime_log'.
  */
@@ -1603,5 +1730,7 @@ module.exports = {
   kickClient, // [NOVO]
   runDiagnostics, // [NOVO]
   getHardwareHealth, // [NOVO]
-  manageBackups // [NOVO]
+  manageBackups, // [NOVO]
+  manageWifi, // [NOVO]
+  resetRouterConfig // [NOVO]
 };
