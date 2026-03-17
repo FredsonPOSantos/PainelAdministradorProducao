@@ -25,3 +25,7 @@ backend/db_dump_*.json
 srvadm.key
 
 bfg-1.15.0.jar
+
+# Ignorar o aplicativo mobile
+rota-noc-app/
+ bfg-1.15.0.jar

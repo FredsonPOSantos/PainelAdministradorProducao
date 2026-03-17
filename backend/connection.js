@@ -405,6 +405,51 @@ async function checkAndUpgradeSchema(client) {
         console.log("   ✅ Tabela 'router_daily_stats' criada para histórico consolidado.");
     }
 
+    // [NOVO] Tabela de Fila de Tarefas (Para ações em roteadores offline)
+    const routerTasksExists = await checkTable('router_tasks');
+    if (!routerTasksExists) {
+        console.log("   -> Tabela 'router_tasks' não encontrada. Criando...");
+        await client.query(`
+            CREATE TABLE router_tasks (
+                id SERIAL PRIMARY KEY,
+                router_id INTEGER REFERENCES routers(id) ON DELETE CASCADE,
+                action VARCHAR(50) NOT NULL, -- ex: 'reboot', 'set_ssid'
+                payload JSONB, -- Parâmetros extras (ex: {"ssid": "VIP", "interface": "wifi1"})
+                status VARCHAR(20) DEFAULT 'pending', -- pending, completed, failed, cancelled
+                created_by VARCHAR(255), -- Email de quem solicitou
+                created_at TIMESTAMP DEFAULT NOW(),
+                executed_at TIMESTAMP,
+                retry_count INTEGER DEFAULT 0
+            );
+        `);
+        console.log("   ✅ Tabela 'router_tasks' (Fila de Tarefas) criada.");
+    }
+
+    // [NOVO] Coluna para Push Notifications no App Mobile
+    const pushTokenExists = await checkColumn('admin_users', 'expo_push_token');
+    if (!pushTokenExists) {
+        console.log("   -> Adicionando coluna 'expo_push_token' à tabela 'admin_users'...");
+        await client.query('ALTER TABLE admin_users ADD COLUMN expo_push_token VARCHAR(255)');
+        console.log("   ✅ Coluna 'expo_push_token' adicionada.");
+    }
+
+    // [NOVO] Tabela para Assinaturas de Alertas (Push)
+    const routerSubsExists = await checkTable('router_subscriptions');
+    if (!routerSubsExists) {
+        console.log("   -> Tabela 'router_subscriptions' não encontrada. Criando...");
+        await client.query(`
+            CREATE TABLE router_subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES admin_users(id) ON DELETE CASCADE,
+                router_id INTEGER REFERENCES routers(id) ON DELETE CASCADE,
+                target_status VARCHAR(20) DEFAULT 'online', -- 'online' ou 'offline'
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, router_id, target_status)
+            );
+        `);
+        console.log("   ✅ Tabela 'router_subscriptions' criada para alertas Push.");
+    }
+
     // [NOVO] Garante que todas as permissões do sistema existem na tabela 'permissions'
     // Isto assegura que o Master tenha acesso a tudo (exceto LGPD) e que as permissões apareçam na matriz.
     const systemPermissions = [

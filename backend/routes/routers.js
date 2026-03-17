@@ -61,4 +61,12 @@ router.delete('/groups/:id', verifyToken, checkPermission('routers.delete'), rou
 // [NOVO] Rota para obter a distribuição de utilizadores por roteador dentro de um grupo
 router.get('/groups/:id/user-distribution', verifyToken, checkPermission('analytics.read'), routerController.getRouterGroupUserDistribution);
 
+// [NOVO] Rotas para a Fila de Tarefas (App Mobile)
+router.get('/tasks/pending', verifyToken, routerController.getPendingTasks);
+router.delete('/tasks/:id', verifyToken, routerController.cancelTask);
+
+// [NOVO] Rotas para Assinatura de Notificações Push
+router.get('/:id/subscribe', verifyToken, routerController.checkSubscription);
+router.post('/:id/subscribe', verifyToken, routerController.toggleSubscription);
+
 module.exports = router;

@@ -38,5 +38,6 @@ router.put('/', verifyToken, profileController.updateProfile);
 router.put('/theme', verifyToken, profileController.updateTheme);
 router.post('/change-own-password', verifyToken, profileController.changePassword);
 router.post('/avatar', verifyToken, upload.single('avatar'), profileController.uploadAvatar);
+router.post('/push-token', verifyToken, profileController.savePushToken);
 
 module.exports = router;

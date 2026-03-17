@@ -2,3 +2,6 @@
 backend\.env
 ecosystem.config.js
 backend/db_dump_*.json
+# Ignorar o aplicativo mobile
+rota-noc-app/
+echo "rota-noc-app/" >> .gitignore

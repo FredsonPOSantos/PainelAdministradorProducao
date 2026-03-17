@@ -634,9 +634,41 @@ const runMonitoringCycle = async () => {
                 for (const host of successfulHosts) {
                     await client.query('INSERT INTO router_uptime_log (router_host, collected_at) VALUES ($1, NOW())', [host]);
                     
-                    // [NOVO] Atualiza a tabela routers para refletir que o agente conseguiu conectar.
-                    // Define last_seen = AGORA.
-                    // Define status = 'online' APENAS se não estiver em manutenção.
+                    // Verifica o estado atual para ver se acabou de voltar de "offline" para "online"
+                    const checkRes = await client.query('SELECT id, name, status, is_maintenance FROM routers WHERE ip_address = $1', [host]);
+                    if (checkRes.rowCount > 0) {
+                        const router = checkRes.rows[0];
+                        
+                        // Se estava offline e não está em manutenção, significa que VOLTOU!
+                        if (router.status === 'offline' && !router.is_maintenance) {
+                            console.log(`[ALERTA] Roteador ${router.name} (${host}) voltou a ficar online! Disparando Push...`);
+                            
+                            // Busca utilizadores que querem ser avisados quando este roteador ficar ONLINE
+                            const subs = await client.query(`
+                                SELECT u.expo_push_token FROM router_subscriptions s
+                                JOIN admin_users u ON s.user_id = u.id
+                                WHERE s.router_id = $1 AND s.target_status = 'online' AND u.expo_push_token IS NOT NULL
+                            `, [router.id]);
+                            
+                            if (subs.rowCount > 0) {
+                                const tokens = subs.rows.map(r => r.expo_push_token);
+                                try {
+                                    await fetch('https://exp.host/--/api/v2/push/send', {
+                                        method: 'POST',
+                                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            to: tokens,
+                                            sound: 'default',
+                                            title: '🟢 Roteador Online!',
+                                            body: `O roteador ${router.name} acabou de restabelecer a comunicação.`,
+                                            data: { routerId: router.id }
+                                        }),
+                                    });
+                                } catch (err) { console.error('Erro ao enviar Push:', err.message); }
+                            }
+                        }
+                    }
+
                     await client.query(`
                         UPDATE routers 
                         SET last_seen = NOW(), 
@@ -659,6 +691,31 @@ const runMonitoringCycle = async () => {
 
     if (failedHosts.length > 0) {
         console.error(`[${new Date().toISOString()}] ❌ Falha ao coletar nos roteadores: ${failedHosts.join(', ')}`);
+        
+        // [CRÍTICO] Atualiza o banco de dados marcando os que falharam como OFFLINE
+        try {
+            const client = await pgPool.connect();
+            try {
+                await client.query('BEGIN');
+                for (const host of failedHosts) {
+                    const checkRes = await client.query("SELECT id, name, status, is_maintenance FROM routers WHERE ip_address = $1", [host]);
+                    if (checkRes.rowCount > 0) {
+                        const router = checkRes.rows[0];
+                        // Se estava online, muda para offline e guarda a hora para o cálculo de inatividade
+                        if (router.status === 'online' && !router.is_maintenance) {
+                            await client.query("UPDATE routers SET status = 'offline', status_changed_at = NOW() WHERE ip_address = $1", [host]);
+                        }
+                    }
+                }
+                await client.query('COMMIT');
+            } catch(e) {
+                await client.query('ROLLBACK');
+            } finally {
+                client.release();
+            }
+        } catch(e) {
+            console.error('[DB] Erro ao atualizar falhas:', e.message);
+        }
     }
 };
 

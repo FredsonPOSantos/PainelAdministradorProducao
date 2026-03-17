@@ -79,7 +79,8 @@ const getRouterReport = async (req, res) => {
                     
                     // Total de janelas em 30 dias (30 dias * 24 horas * 12 janelas/hora = 8640)
                     const totalWindows = 8640;
-                    const percentage = ((onlineWindows / totalWindows) * 100).toFixed(2);
+                    let calcPercentage = (onlineWindows / totalWindows) * 100;
+                    const percentage = Math.min(calcPercentage, 100).toFixed(2);
                     
                     return { id: router.id, availability: `${percentage}%` };
                 } catch (e) {
@@ -630,7 +631,8 @@ const checkRouterStatus = async (req, res) => {
                 else if (range === '30d') totalExpectedCollections = 30 * 24 * 60 * (60 / collectionIntervalSeconds);
                 else totalExpectedCollections = 24 * 60 * (60 / collectionIntervalSeconds); // 24h
 
-                finalState.availability = totalExpectedCollections > 0 ? ((successfulCollections / totalExpectedCollections) * 100).toFixed(2) : '0.00';
+                let calcAvailability = totalExpectedCollections > 0 ? ((successfulCollections / totalExpectedCollections) * 100) : 0;
+                finalState.availability = Math.min(calcAvailability, 100).toFixed(2);
             } catch (pgError) {
                 console.error(`Erro ao buscar disponibilidade no PostgreSQL para ${ip}: ${pgError.message}`);
                 finalState.availability = null;
@@ -738,6 +740,23 @@ const rebootRouter = async (req, res) => {
         } else if (error.code === 'ECONNREFUSED') {
             userMessage = `Conexão recusada pelo roteador (${error.address || 'IP'}:${error.port || 8728}). Verifique se o serviço API está ativado no MikroTik (/ip service enable api) e se a porta está correta.`;
         } else if (error.code === 'ETIMEDOUT' || (error.message && error.message.includes('Timeout'))) {
+            // [NOVO - FASE 2] Agendamento de Tarefa para roteador offline
+            try {
+                await pool.query(
+                    `INSERT INTO router_tasks (router_id, action, payload, created_by) VALUES ($1, $2, $3, $4)`,
+                    [id, 'reboot', JSON.stringify({}), req.user ? req.user.email : 'sistema']
+                );
+                
+                await logAction({
+                    req, action: 'ROUTER_REBOOT_SCHEDULED', status: 'SUCCESS',
+                    description: `Roteador offline. Reinício agendado para o ID ${id}.`, target_type: 'router', target_id: id
+                });
+
+                // Retorna 202 (Accepted) para indicar que a requisição foi aceite para processamento futuro
+                return res.status(202).json({ success: true, message: 'Roteador offline. O reinício foi colocado na fila e será executado assim que ele voltar!' });
+            } catch (dbErr) {
+                console.error('Erro ao inserir na fila de tarefas de reboot:', dbErr);
+            }
             userMessage = `Tempo limite esgotado. O servidor não conseguiu alcançar o roteador. Verifique o IP e a conectividade.`;
         }
 
@@ -1584,6 +1603,26 @@ const manageWifi = async (req, res) => {
 
     } catch (error) {
         console.error(`Erro em manageWifi (Router ${id}):`, error.message);
+        
+        // [NOVO - FASE 2] Agendamento de Tarefa de SSID para roteador offline
+        const isOfflineError = (error.message && error.message.toLowerCase().includes('timeout')) || error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH' || error.code === 'ECONNREFUSED';
+        if (isOfflineError && action === 'set_ssid') {
+             try {
+                await pool.query(
+                    `INSERT INTO router_tasks (router_id, action, payload, created_by) VALUES ($1, $2, $3, $4)`,
+                    [id, 'set_ssid', JSON.stringify({ interfaceId, ssid }), req.user ? req.user.email : 'sistema']
+                );
+                await logAction({
+                    req, action: 'ROUTER_WIFI_SCHEDULED', status: 'SUCCESS',
+                    description: `Roteador offline. Alteração de SSID agendada para a interface ${interfaceId} no roteador ID ${id}.`,
+                    target_type: 'router', target_id: id
+                });
+                return res.status(202).json({ success: true, message: 'Roteador offline. A mudança de SSID foi colocada na fila e será aplicada assim que ele voltar!' });
+            } catch (dbErr) {
+                console.error('Erro ao inserir na fila de tarefas de wifi:', dbErr);
+            }
+        }
+
         if (error.message && error.message.toLowerCase().includes('timeout')) {
             return res.status(504).json({ message: 'Gateway Timeout: O roteador não respondeu a tempo.' });
         }
@@ -1707,6 +1746,78 @@ const getRouterUptimeReport = async (req, res) => {
     }
 };
 
+/**
+ * [NOVO] Obtém tarefas pendentes da fila.
+ */
+const getPendingTasks = async (req, res) => {
+    try {
+        const query = `
+            SELECT t.id, t.action, t.payload, t.status, t.created_by, t.created_at, r.name as router_name
+            FROM router_tasks t
+            JOIN routers r ON t.router_id = r.id
+            WHERE t.status = 'pending'
+            ORDER BY t.created_at DESC
+        `;
+        const { rows } = await pool.query(query);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('Erro ao buscar tarefas pendentes:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar tarefas.' });
+    }
+};
+
+/**
+ * [NOVO] Cancela uma tarefa pendente.
+ */
+const cancelTask = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query("UPDATE router_tasks SET status = 'cancelled' WHERE id = $1 RETURNING id", [id]);
+        if (result.rowCount === 0) return res.status(404).json({ success: false, message: 'Tarefa não encontrada ou já processada.' });
+        res.json({ success: true, message: 'Tarefa cancelada com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao cancelar tarefa:', error);
+        res.status(500).json({ success: false, message: 'Erro ao cancelar tarefa.' });
+    }
+};
+
+/**
+ * [NOVO] Alterna a assinatura de notificações Push para um roteador.
+ */
+const toggleSubscription = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const targetStatus = req.body.target_status || 'online';
+
+    try {
+        const check = await pool.query('SELECT id FROM router_subscriptions WHERE user_id = $1 AND router_id = $2 AND target_status = $3', [userId, id, targetStatus]);
+        if (check.rowCount > 0) {
+            await pool.query('DELETE FROM router_subscriptions WHERE id = $1', [check.rows[0].id]);
+            res.json({ success: true, isSubscribed: false, message: 'Alerta de notificação desativado.' });
+        } else {
+            await pool.query('INSERT INTO router_subscriptions (user_id, router_id, target_status) VALUES ($1, $2, $3)', [userId, id, targetStatus]);
+            res.json({ success: true, isSubscribed: true, message: 'Você será notificado quando ficar online!' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao configurar alerta.' });
+    }
+};
+
+/**
+ * [NOVO] Verifica o status de assinatura
+ */
+const checkSubscription = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const targetStatus = req.query.target_status || 'online';
+    try {
+        const check = await pool.query('SELECT id FROM router_subscriptions WHERE user_id = $1 AND router_id = $2 AND target_status = $3', [userId, id, targetStatus]);
+        res.json({ success: true, isSubscribed: check.rowCount > 0 });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao verificar assinatura.' });
+    }
+};
+
 module.exports = {
   getRoutersStatus, // Exporta a nova função
   getAllRouters,
@@ -1732,5 +1843,9 @@ module.exports = {
   getHardwareHealth, // [NOVO]
   manageBackups, // [NOVO]
   manageWifi, // [NOVO]
-  resetRouterConfig // [NOVO]
+  resetRouterConfig, // [NOVO]
+  getPendingTasks, // [NOVO]
+  cancelTask, // [NOVO]
+  toggleSubscription, // [NOVO]
+  checkSubscription // [NOVO]
 };

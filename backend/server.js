@@ -72,6 +72,7 @@ const { logError } = require('./services/errorLogService'); // [NOVO] Importa o 
 const { runDailyConsolidation } = require('./services/historyService'); // [NOVO] Serviço de Histórico
 const { checkSnmpStatus } = require('./services/snmpService'); // [NOVO] Serviço SNMP
 const { startReportScheduler } = require('./services/offlineReportAgent'); // [NOVO] Agente de Relatórios
+const { startTaskWorker } = require('./services/taskQueueService'); // [NOVO] Robô de Tarefas Assíncronas
 const verifyToken = require('./middlewares/authMiddleware'); // [NOVO] Importa middleware de auth
 const checkPermission = require('./middlewares/roleMiddleware'); // [NOVO] Importa middleware de permissão
 const authRoutes = require('./routes/auth');
@@ -413,6 +414,9 @@ server.listen(PORT, async () => { // [MODIFICADO] Usa server.listen em vez de ap
 
   // [NOVO] Inicia o agendador de relatórios offline (08:00 e 14:00)
   await startReportScheduler();
+
+  // [NOVO] Inicia o robô de tarefas assíncronas (executa filas pendentes a cada 1 min)
+  startTaskWorker();
 
   // [NOVO] Regista o evento de início do servidor no log de auditoria
   await logAction({

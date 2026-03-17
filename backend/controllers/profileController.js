@@ -161,4 +161,18 @@ const uploadAvatar = async (req, res) => {
     }
 };
 
-module.exports = { getProfile, updateProfile, updateTheme, changePassword, uploadAvatar };
+// [NOVO] Salvar Expo Push Token do dispositivo móvel
+const savePushToken = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { token } = req.body;
+        
+        await pool.query('UPDATE admin_users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
+        res.json({ success: true, message: 'Push token salvo com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao salvar push token:', error);
+        res.status(500).json({ success: false, message: 'Erro ao salvar token.' });
+    }
+};
+
+module.exports = { getProfile, updateProfile, updateTheme, changePassword, uploadAvatar, savePushToken };
