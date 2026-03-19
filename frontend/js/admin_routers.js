@@ -253,7 +253,6 @@ window.initRoutersPage = () => {
                 detailsRow.id = `details-${router.id}`;
                 detailsRow.className = 'router-details-row hidden';
                 detailsRow.innerHTML = `
-                    <td colspan="5">
                     <td colspan="6">
                         <div class="router-details-grid">
                             <div class="detail-item">
