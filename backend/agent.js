@@ -84,6 +84,10 @@ const influxDB = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
 const writeApi = influxDB.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
 // ...existing code...
 
+// [NOVO] Buffer e Cache para o histórico de DHCP (Evita sobrecarregar o Banco)
+const dhcpLeaseCache = new Map();
+let dhcpUpsertBuffer = [];
+
 // --- 3. Utilitários ---
 const sanitizeKey = (k) => String(k).replace(/[^a-zA-Z0-9_]/g,'_').replace(/^_+|_+$/g,'').toLowerCase();
 
@@ -475,6 +479,21 @@ const collectMetrics = async (host) => {
                             delete filteredRow.age; // Remove original
                         }
                         // [REMOVIDO] Conversão de expires_after e last_seen removida conforme solicitado
+
+                        // [NOVO] Lógica para guardar histórico de dispositivos no PostgreSQL
+                        if (row.status === 'bound' && row['mac-address']) {
+                            const mac = row['mac-address'];
+                            const hostName = row['host-name'] || '';
+                            const ip = row['address'] || '';
+                            const cacheKey = `${mac}|${host}`;
+                            const now = Date.now();
+                            
+                            // Atualiza no banco apenas a cada 5 minutos por MAC/Router para poupar I/O
+                            if (!dhcpLeaseCache.has(cacheKey) || (now - dhcpLeaseCache.get(cacheKey)) > 300000) {
+                                dhcpLeaseCache.set(cacheKey, now);
+                                dhcpUpsertBuffer.push({ mac, hostName, ip, host });
+                            }
+                        }
                     }
                     
                     if (measurement === 'interface_wireless_registration_table' && row.uptime) {
@@ -686,6 +705,36 @@ const runMonitoringCycle = async () => {
             }
         } catch (e) {
              console.error(`[DB] Erro de conexão PG: ${e.message}`);
+        }
+    }
+
+    // [NOVO] Processar o Buffer de Histórico DHCP e gravar no Banco
+    if (dhcpUpsertBuffer.length > 0) {
+        try {
+            const client = await pgPool.connect();
+            try {
+                await client.query('BEGIN');
+                for (const lease of dhcpUpsertBuffer) {
+                    await client.query(`
+                        INSERT INTO dhcp_leases_history (mac_address, host_name, ip_address, router_host, first_seen, last_seen)
+                        VALUES ($1, $2, $3, $4, NOW(), NOW())
+                        ON CONFLICT (mac_address, router_host) 
+                        DO UPDATE SET 
+                            last_seen = NOW(),
+                            host_name = EXCLUDED.host_name,
+                            ip_address = EXCLUDED.ip_address
+                    `, [lease.mac, lease.hostName, lease.ip, lease.host]);
+                }
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                console.error('[DB] Erro ao salvar histórico DHCP:', err.message);
+            } finally {
+                client.release();
+            }
+            dhcpUpsertBuffer = []; // Limpa o buffer após tentar salvar
+        } catch (err) {
+            console.error('[DB] Erro de conexão ao salvar histórico DHCP:', err.message);
         }
     }
 

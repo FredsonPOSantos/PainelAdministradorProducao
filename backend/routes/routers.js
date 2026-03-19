@@ -12,6 +12,7 @@ const routerController = require('../controllers/routerController');
 
 // --- ROTAS DE ROTEADORES INDIVIDUAIS ---
 router.get('/', verifyToken, checkPermission('routers.read'), routerController.getAllRouters);
+router.post('/', verifyToken, checkPermission('routers.create'), routerController.createRouter);
 router.put('/:id', verifyToken, checkPermission('routers.update'), routerController.updateRouter);
 router.delete('/:id', verifyToken, checkPermission('routers.delete'), routerController.deleteRouter);
 
@@ -68,5 +69,8 @@ router.delete('/tasks/:id', verifyToken, routerController.cancelTask);
 // [NOVO] Rotas para Assinatura de Notificações Push
 router.get('/:id/subscribe', verifyToken, routerController.checkSubscription);
 router.post('/:id/subscribe', verifyToken, routerController.toggleSubscription);
+
+// [NOVO] Rota para histórico de dispositivos (DHCP)
+router.get('/reports/dhcp-history', verifyToken, checkPermission('routers.read'), routerController.getDhcpLeasesHistory);
 
 module.exports = router;

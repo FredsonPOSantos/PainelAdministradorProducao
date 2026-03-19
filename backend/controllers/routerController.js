@@ -22,6 +22,58 @@ try {
 
 // --- Funções de Roteadores Individuais ---
 
+/**
+ * [NOVO] Cria um roteador manualmente.
+ */
+const createRouter = async (req, res) => {
+    const { name, ip_address, observacao, username, password, api_port, monitoring_interface } = req.body;
+
+    if (!name || name.trim() === '') {
+        return res.status(400).json({ message: 'O nome do roteador é obrigatório.' });
+    }
+
+    try {
+        // Verificar se já existe
+        const checkQuery = await pool.query('SELECT id FROM routers WHERE name = $1', [name.trim()]);
+        if (checkQuery.rowCount > 0) {
+            return res.status(409).json({ message: 'Já existe um roteador com este nome.' });
+        }
+
+        const insertQuery = `
+            INSERT INTO routers (name, ip_address, observacao, username, password, api_port, monitoring_interface, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'offline')
+            RETURNING *
+        `;
+        
+        const portValue = api_port ? parseInt(api_port, 10) : null;
+
+        const newRouter = await pool.query(insertQuery, [
+            name.trim(),
+            ip_address === '' ? null : ip_address,
+            observacao,
+            username === '' ? null : username,
+            password || null,
+            isNaN(portValue) ? null : portValue,
+            monitoring_interface === '' ? null : monitoring_interface
+        ]);
+
+        await logAction({
+            req,
+            action: 'ROUTER_CREATE',
+            status: 'SUCCESS',
+            description: `Utilizador "${req.user.email}" criou o roteador "${name}" manualmente.`,
+            target_type: 'router',
+            target_id: newRouter.rows[0].id
+        });
+
+        res.status(201).json({ message: 'Roteador criado com sucesso!', router: newRouter.rows[0] });
+
+    } catch (error) {
+        console.error('Erro ao criar roteador:', error.message);
+        res.status(500).json({ message: 'Erro interno ao criar roteador.' });
+    }
+};
+
 const getAllRouters = async (req, res) => {
   // [MODIFICADO] Esta rota agora é usada apenas para a lista simples na gestão.
   // A nova rota /status é usada para a página de monitoramento.
@@ -1818,9 +1870,55 @@ const checkSubscription = async (req, res) => {
     }
 };
 
+/**
+ * [NOVO] Obtém o histórico de leases DHCP (Dispositivos Conectados) para a Central de Relatórios.
+ */
+const getDhcpLeasesHistory = async (req, res) => {
+    const { startDate, endDate, routerId } = req.query;
+
+    try {
+        let query = `
+            SELECT d.mac_address, d.host_name, d.ip_address, d.first_seen, d.last_seen, r.name as router_name
+            FROM dhcp_leases_history d
+            LEFT JOIN routers r ON d.router_host = r.ip_address
+            WHERE 1=1
+        `;
+        const params = [];
+        let paramIndex = 1;
+
+        if (startDate) {
+            query += ` AND d.last_seen >= $${paramIndex++}`;
+            params.push(startDate);
+        }
+        if (endDate) {
+            // Se o filtro vier com hora do calendário/relógio (ex: 2023-10-25T14:30), respeita a hora exata
+            if (endDate.includes('T') || endDate.includes(':')) {
+                query += ` AND d.last_seen <= $${paramIndex++}`;
+            } else {
+                // Fallback para datas simples sem horário
+                query += ` AND d.last_seen <= $${paramIndex++}::timestamp + interval '1 day' - interval '1 second'`;
+            }
+            params.push(endDate);
+        }
+        if (routerId) {
+            query += ` AND r.id = $${paramIndex++}`;
+            params.push(routerId);
+        }
+
+        query += ` ORDER BY d.last_seen DESC LIMIT 5000`; // Limite seguro para não sobrecarregar
+
+        const { rows } = await pool.query(query, params);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('Erro ao buscar histórico DHCP:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar histórico DHCP.' });
+    }
+};
+
 module.exports = {
   getRoutersStatus, // Exporta a nova função
   getAllRouters,
+  createRouter, // [NOVO] Exporta a função de criação manual
   getRouterReport, // [NOVO] Exporta a função de relatório
   getRouterUptimeReport, // [NOVO] Exporta a nova função
   updateRouter,
@@ -1847,5 +1945,6 @@ module.exports = {
   getPendingTasks, // [NOVO]
   cancelTask, // [NOVO]
   toggleSubscription, // [NOVO]
-  checkSubscription // [NOVO]
+  checkSubscription, // [NOVO]
+  getDhcpLeasesHistory // [NOVO]
 };

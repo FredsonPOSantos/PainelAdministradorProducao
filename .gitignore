@@ -24,6 +24,9 @@ backend/db_dump_*.json
 
 srvadm.key
 
+# Ignorar pasta de logs e arquivos gerados pelo sistema
+logs/
+
 bfg-1.15.0.jar
 
 # Ignorar o aplicativo mobile

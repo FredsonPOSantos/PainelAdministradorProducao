@@ -30,6 +30,17 @@ window.initRoutersPage = () => {
 
         // [NOVO] Cria e injeta o botão de exportar para Excel ao lado dos outros botões de ação
         if (checkStatusBtn && checkStatusBtn.parentElement) {
+            // [NOVO] Injeta o botão de Criar Roteador Manualmente
+            if (!document.getElementById('addManualRouterBtn')) {
+                const addManualRouterBtn = document.createElement('button');
+                addManualRouterBtn.id = 'addManualRouterBtn';
+                addManualRouterBtn.className = 'btn-primary';
+                addManualRouterBtn.innerHTML = '<i class="fas fa-plus" style="margin-right: 8px;"></i>Novo Roteador';
+                addManualRouterBtn.onclick = () => window.openModalForCreateRouter();
+                // Insere como o primeiro botão do container de ações
+                checkStatusBtn.parentElement.insertBefore(addManualRouterBtn, checkStatusBtn.parentElement.firstChild);
+            }
+
             // Verifica se já existe para não duplicar
             if (!document.getElementById('exportExcelBtn')) {
                 const exportExcelBtn = document.createElement('button');
@@ -321,6 +332,39 @@ window.initRoutersPage = () => {
             paginationContainer.appendChild(createButton('Próximo', currentPage + 1, currentPage === totalPages));
         };
 
+        // [NOVO] Abrir modal para criação manual
+        window.openModalForCreateRouter = () => {
+            routerForm.reset();
+            document.getElementById('routerId').value = '';
+            
+            // Desbloqueia o nome para edição
+            const nameInput = document.getElementById('routerName');
+            if (nameInput) {
+                nameInput.readOnly = false;
+                nameInput.style.opacity = '1';
+            }
+
+            const monitoringInterfaceInput = document.getElementById('routerMonitoringInterface');
+            if (monitoringInterfaceInput) {
+                const parentGroup = monitoringInterfaceInput.parentElement;
+                const oldSelect = parentGroup.querySelector('select#routerMonitoringInterface');
+                if (oldSelect) oldSelect.remove();
+                monitoringInterfaceInput.style.display = 'block';
+            }
+
+            const apiUserInput = document.getElementById('routerApiUser');
+            const apiPortInput = document.getElementById('routerApiPort');
+            const apiPasswordInput = document.getElementById('routerApiPassword');
+            if (apiUserInput) apiUserInput.value = '';
+            if (apiPortInput) apiPortInput.value = '8728'; // Porta padrão MikroTik
+            if (apiPasswordInput) apiPasswordInput.value = '';
+
+            const modalTitle = routerModal.querySelector('h3');
+            if (modalTitle) modalTitle.textContent = 'Adicionar Novo Roteador';
+
+            routerModal.classList.remove('hidden');
+        };
+
         // --- Lógica para Roteadores Individuais (Edição e Eliminação) ---
         
         window.openModalForEditRouter = (routerId) => {
@@ -329,6 +373,14 @@ window.initRoutersPage = () => {
             routerForm.reset();
             document.getElementById('routerId').value = router.id;
             document.getElementById('routerName').value = router.name;
+            
+            // Bloqueia a edição do nome ao editar
+            const nameInput = document.getElementById('routerName');
+            if (nameInput) {
+                nameInput.readOnly = true;
+                nameInput.style.opacity = '0.7';
+            }
+
             document.getElementById('routerIpAddress').value = router.ip || ''; // [CORRIGIDO] Usa a propriedade 'ip' que vem da API de monitoramento
 
             // --- [MODIFICADO] Lógica para a seleção da interface de monitoramento ---
@@ -382,6 +434,9 @@ window.initRoutersPage = () => {
             if (apiPortInput) apiPortInput.value = router.api_port || '';
             if (apiPasswordInput) apiPasswordInput.value = ''; // Nunca preenche a senha por segurança
 
+            const modalTitle = routerModal.querySelector('h3');
+            if (modalTitle) modalTitle.textContent = 'Editar Roteador';
+
             routerModal.classList.remove('hidden');
         };
 
@@ -390,12 +445,25 @@ window.initRoutersPage = () => {
             event.preventDefault();
             const routerId = document.getElementById('routerId').value;
             const routerData = { 
+                name: document.getElementById('routerName').value, // [NOVO] Adiciona o nome para criação
                 observacao: document.getElementById('routerDescription').value,
                 ip_address: document.getElementById('routerIpAddress').value || null,
                 monitoring_interface: document.getElementById('routerMonitoringInterface').value || null // [NOVO]
             };
+            
+            // [NOVO] Coleta os campos de API para envio
+            const apiUser = document.getElementById('routerApiUser')?.value;
+            const apiPort = document.getElementById('routerApiPort')?.value;
+            const apiPass = document.getElementById('routerApiPassword')?.value;
+            if (apiUser) routerData.username = apiUser;
+            if (apiPort) routerData.api_port = apiPort;
+            if (apiPass) routerData.password = apiPass;
+
+            const method = routerId ? 'PUT' : 'POST';
+            const endpoint = routerId ? `/api/routers/${routerId}` : '/api/routers';
+
             try {
-                const result = await apiRequest(`/api/routers/${routerId}`, 'PUT', routerData);
+                const result = await apiRequest(endpoint, method, routerData);
                 showNotification(result.message, 'success');
                 routerModal.classList.add('hidden');
                 loadPageData(); // Recarrega para atualizar a lista local

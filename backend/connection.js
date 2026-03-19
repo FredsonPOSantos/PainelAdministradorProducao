@@ -425,6 +425,25 @@ async function checkAndUpgradeSchema(client) {
         console.log("   ✅ Tabela 'router_tasks' (Fila de Tarefas) criada.");
     }
 
+    // [NOVO] Tabela para Histórico de DHCP Leases (Conexões Diretas)
+    const dhcpLeasesHistoryExists = await checkTable('dhcp_leases_history');
+    if (!dhcpLeasesHistoryExists) {
+        console.log("   -> Tabela 'dhcp_leases_history' não encontrada. Criando...");
+        await client.query(`
+            CREATE TABLE dhcp_leases_history (
+                id SERIAL PRIMARY KEY,
+                mac_address VARCHAR(50) NOT NULL,
+                host_name VARCHAR(255),
+                ip_address VARCHAR(50),
+                router_host VARCHAR(50) NOT NULL,
+                first_seen TIMESTAMPTZ DEFAULT NOW(),
+                last_seen TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(mac_address, router_host)
+            );
+        `);
+        console.log("   ✅ Tabela 'dhcp_leases_history' criada.");
+    }
+
     // [NOVO] Coluna para Push Notifications no App Mobile
     const pushTokenExists = await checkColumn('admin_users', 'expo_push_token');
     if (!pushTokenExists) {

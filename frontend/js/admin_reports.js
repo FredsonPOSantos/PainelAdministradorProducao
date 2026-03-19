@@ -81,6 +81,23 @@ if (window.initReportsPage) {
                     { key: 'user_email', label: 'Utilizador' }
                 ]
             },
+            'dhcp_history': { // [NOVO] Relatório DHCP
+                title: 'Histórico de Dispositivos Conectados (DHCP Leases)',
+                endpoint: '/api/routers/reports/dhcp-history',
+                filters: [
+                    { id: 'startDate', label: 'Visto a partir de (Data e Hora)', type: 'datetime-local' },
+                    { id: 'endDate', label: 'Visto até (Data e Hora)', type: 'datetime-local' },
+                    { id: 'routerId', label: 'Roteador', type: 'select', source: '/api/routers', key: 'id', text: 'name' }
+                ],
+                columns: [
+                    { key: 'mac_address', label: 'Endereço MAC' },
+                    { key: 'host_name', label: 'Dispositivo' },
+                    { key: 'ip_address', label: 'Último IP' },
+                    { key: 'router_name', label: 'Roteador' },
+                    { key: 'first_seen', label: 'Primeira Vez Visto', type: 'datetime' },
+                    { key: 'last_seen', label: 'Última Vez Visto', type: 'datetime' }
+                ]
+            },
             'routers': {
                 title: 'Inventário e Performance de Roteadores',
                 endpoint: '/api/routers/report', // [MODIFICADO] Usa a nova rota de relatório detalhado
