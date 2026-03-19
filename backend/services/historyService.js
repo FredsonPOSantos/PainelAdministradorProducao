@@ -97,7 +97,7 @@ const runRetentionPolicy = async (client) => {
         
         if (dhcpOldResult.rowCount > 0) {
             // 1. Arquivar em ficheiro JSON
-            const archiveDir = path.join(__dirname, '../public/uploads/archives/dhcplease');
+            const archiveDir = path.join(__dirname, '../public/uploads/arquivos/dhcplease');
             if (!fs.existsSync(archiveDir)) {
                 fs.mkdirSync(archiveDir, { recursive: true });
             }
