@@ -89,6 +89,34 @@ const runRetentionPolicy = async (client) => {
             console.log('   -> Nenhum registo antigo para limpar.');
         }
 
+        // [NOVO] Apaga dispositivos do histórico DHCP que não são vistos há mais de 60 dias
+        const dhcpOldResult = await client.query(`
+            SELECT * FROM dhcp_leases_history 
+            WHERE last_seen < NOW() - INTERVAL '60 days'
+        `);
+        
+        if (dhcpOldResult.rowCount > 0) {
+            // 1. Arquivar em ficheiro JSON
+            const archiveDir = path.join(__dirname, '../public/uploads/archives/dhcplease');
+            if (!fs.existsSync(archiveDir)) {
+                fs.mkdirSync(archiveDir, { recursive: true });
+            }
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `dhcp_archive_${timestamp}.json`;
+            const filePath = path.join(archiveDir, filename);
+            
+            fs.writeFileSync(filePath, JSON.stringify(dhcpOldResult.rows, null, 2));
+            console.log(`   ✅ [RETENÇÃO] Arquivo de backup DHCP criado: ${filename}`);
+
+            // 2. Apagar do banco de dados os que acabaram de ser arquivados
+            const idsToDelete = dhcpOldResult.rows.map(r => r.id);
+            const deleteResult = await client.query(`DELETE FROM dhcp_leases_history WHERE id = ANY($1::int[])`, [idsToDelete]);
+            
+            console.log(`   ✅ [RETENÇÃO] Limpeza DHCP: ${deleteResult.rowCount} dispositivos inativos removidos do banco.`);
+        } else {
+            console.log('   -> Nenhum registro DHCP antigo para arquivar e limpar.');
+        }
+
     } catch (error) {
         console.error('❌ [RETENÇÃO] Erro ao limpar logs:', error.message);
     }

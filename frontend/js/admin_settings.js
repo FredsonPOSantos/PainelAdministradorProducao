@@ -1359,10 +1359,17 @@ window.initSettingsPage = () => {
                 files.forEach(file => {
                     const item = document.createElement('div');
                     item.className = 'media-item';
+                    
+                    const isImage = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(file.name);
+                    const fileUrl = `http://${window.location.hostname}:3000${file.url}`;
+                    const previewHtml = isImage 
+                        ? `<img src="${fileUrl}" alt="${file.name}" class="media-preview">`
+                        : `<div class="media-preview" style="display:flex; align-items:center; justify-content:center; background:var(--background-dark); font-size:3rem; color:var(--text-secondary); height: 120px;"><i class="fas fa-file-code"></i></div>`;
+
                     item.innerHTML = `
-                        <img src="http://${window.location.hostname}:3000${file.url}" alt="${file.name}" class="media-preview">
+                        ${previewHtml}
                         <div class="media-info">
-                            <span class="media-name" title="${file.name}">${file.name}</span>
+                            <span class="media-name" title="${file.name}"><a href="${fileUrl}" target="_blank" download style="color: var(--primary-color); text-decoration: none;">${file.name}</a></span>
                             <button class="btn-delete-media" data-filename="${file.name}" title="Excluir Permanentemente"><i class="fas fa-trash-alt"></i></button>
                         </div>
                     `;

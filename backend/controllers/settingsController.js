@@ -614,6 +614,12 @@ const listMediaFiles = async (req, res) => {
                 { path: '../../public/uploads/ticket_attachments', urlSegment: 'ticket_attachments' }
             ];
             break;
+        case 'dhcp_leases':
+            candidates = [
+                { path: '../public/uploads/archives/dhcplease', urlSegment: 'archives/dhcplease' },
+                { path: '../../public/uploads/archives/dhcplease', urlSegment: 'archives/dhcplease' }
+            ];
+            break;
         default:
             return res.status(400).json({ message: 'Tipo de mídia inválido.' });
     }
@@ -632,6 +638,8 @@ const listMediaFiles = async (req, res) => {
                     let allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp)$/i;
                     if (type === 'ticket_attachments') {
                         allowedExtensions = /\.(jpg|jpeg|png|gif|svg|webp|pdf|doc|docx|txt|zip|rar|7z|csv|xls|xlsx)$/i;
+                    } else if (type === 'dhcp_leases') {
+                        allowedExtensions = /\.(json|csv)$/i;
                     }
 
                     files.forEach(file => {
@@ -670,6 +678,7 @@ const deleteMediaFile = async (req, res) => {
         case 'logos': folderPath = '../../public/uploads/logos'; break; // [CORRIGIDO]
         case 'hotspot_logos': folderPath = '../../public/uploads/logo_hotspot'; break; // [NOVO]
         case 'ticket_attachments': folderPath = '../public/uploads/ticket_attachments'; break; // [NOVO]
+        case 'dhcp_leases': folderPath = '../public/uploads/archives/dhcplease'; break; // [NOVO]
         default: return res.status(400).json({ message: 'Tipo de mídia inválido.' });
     }
 
