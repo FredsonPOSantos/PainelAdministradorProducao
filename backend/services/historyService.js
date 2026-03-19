@@ -101,11 +101,17 @@ const runRetentionPolicy = async (client) => {
             if (!fs.existsSync(archiveDir)) {
                 fs.mkdirSync(archiveDir, { recursive: true });
             }
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `dhcp_archive_${timestamp}.json`;
+            
+            const filename = `dhcp_archive_cumulative.json`;
             const filePath = path.join(archiveDir, filename);
             
-            fs.writeFileSync(filePath, JSON.stringify(dhcpOldResult.rows, null, 2));
+            let fileContent = [];
+            if (fs.existsSync(filePath)) {
+                try { fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (e) {}
+            }
+            
+            const newContent = fileContent.concat(dhcpOldResult.rows);
+            fs.writeFileSync(filePath, JSON.stringify(newContent, null, 2));
             console.log(`   ✅ [RETENÇÃO] Arquivo de backup DHCP criado: ${filename}`);
 
             // 2. Apagar do banco de dados os que acabaram de ser arquivados
