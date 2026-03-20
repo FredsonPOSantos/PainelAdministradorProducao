@@ -346,7 +346,7 @@ window.initRoutersPage = () => {
             const monitoringInterfaceInput = document.getElementById('routerMonitoringInterface');
             if (monitoringInterfaceInput) {
                 const parentGroup = monitoringInterfaceInput.parentElement;
-                const oldSelect = parentGroup.querySelector('select#routerMonitoringInterface');
+                const oldSelect = parentGroup.querySelector('select#routerMonitoringInterfaceSelect');
                 if (oldSelect) oldSelect.remove();
                 monitoringInterfaceInput.style.display = 'block';
             }
@@ -376,8 +376,8 @@ window.initRoutersPage = () => {
             // Bloqueia a edição do nome ao editar
             const nameInput = document.getElementById('routerName');
             if (nameInput) {
-                nameInput.readOnly = true;
-                nameInput.style.opacity = '0.7';
+                nameInput.readOnly = false;
+                nameInput.style.opacity = '1';
             }
 
             document.getElementById('routerIpAddress').value = router.ip || ''; // [CORRIGIDO] Usa a propriedade 'ip' que vem da API de monitoramento
@@ -387,7 +387,7 @@ window.initRoutersPage = () => {
             const parentGroup = monitoringInterfaceInput.parentElement;
 
             // Remove o select antigo se existir, para reconstruir
-            const oldSelect = parentGroup.querySelector('select#routerMonitoringInterface');
+            const oldSelect = parentGroup.querySelector('select#routerMonitoringInterfaceSelect');
             if (oldSelect) {
                 oldSelect.remove();
             }
@@ -399,7 +399,7 @@ window.initRoutersPage = () => {
                 monitoringInterfaceInput.style.display = 'none'; // Esconde o input de texto
 
                 const select = document.createElement('select');
-                select.id = 'routerMonitoringInterface';
+                select.id = 'routerMonitoringInterfaceSelect';
                 select.name = 'monitoring_interface';
 
                 // Opção para desativar
@@ -443,11 +443,17 @@ window.initRoutersPage = () => {
         const handleRouterFormSubmit = async (event) => {
             event.preventDefault();
             const routerId = document.getElementById('routerId').value;
+            
+            // [CORREÇÃO] Lê o valor do dropdown dinâmico se ele existir, senão lê do input de texto
+            const dynamicSelect = document.getElementById('routerMonitoringInterfaceSelect');
+            const defaultInput = document.getElementById('routerMonitoringInterface');
+            const monitoringInterfaceValue = dynamicSelect ? dynamicSelect.value : (defaultInput ? defaultInput.value : null);
+
             const routerData = { 
                 name: document.getElementById('routerName').value, // [NOVO] Adiciona o nome para criação
                 observacao: document.getElementById('routerDescription').value,
                 ip_address: document.getElementById('routerIpAddress').value || null,
-                monitoring_interface: document.getElementById('routerMonitoringInterface').value || null // [NOVO]
+                monitoring_interface: monitoringInterfaceValue || null
             };
             
             // [NOVO] Coleta os campos de API para envio

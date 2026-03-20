@@ -105,6 +105,18 @@ const runRetentionPolicy = async (client) => {
             const filename = `dhcp_archive_cumulative.json`;
             const filePath = path.join(archiveDir, filename);
             
+            // [NOVO] Rotação de Ficheiros (Evita que o ficheiro fique gigante)
+            const MAX_SIZE = 10 * 1024 * 1024; // 10 MB em bytes
+            if (fs.existsSync(filePath)) {
+                const stats = fs.statSync(filePath);
+                if (stats.size > MAX_SIZE) {
+                    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+                    const rotatedName = path.join(archiveDir, `dhcp_archive_cumulative_${ts}.json`);
+                    fs.renameSync(filePath, rotatedName);
+                    console.log(`   ✅ [RETENÇÃO] Ficheiro DHCP excedeu 10MB. Rotacionado!`);
+                }
+            }
+
             let fileContent = [];
             if (fs.existsSync(filePath)) {
                 try { fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (e) {}

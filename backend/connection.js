@@ -755,6 +755,18 @@ const testInitialConnection = async () => {
                         // O arquivo cresce até ser excluído manualmente ou via API.
                         const archiveFile = path.join(archiveDir, `uptime_archive_cumulative.json`);
                         
+                        // [NOVO] Rotação de Ficheiros (Evita que o ficheiro fique gigante)
+                        const MAX_SIZE = 10 * 1024 * 1024; // 10 MB em bytes
+                        if (fs.existsSync(archiveFile)) {
+                            const stats = fs.statSync(archiveFile);
+                            if (stats.size > MAX_SIZE) {
+                                const ts = new Date().toISOString().replace(/[:.]/g, '-');
+                                const rotatedName = path.join(archiveDir, `uptime_archive_cumulative_${ts}.json`);
+                                fs.renameSync(archiveFile, rotatedName);
+                                console.log(`[MAINTENANCE] Ficheiro de uptime excedeu 10MB. Rotacionado para: ${rotatedName}`);
+                            }
+                        }
+
                         // Lê o arquivo existente ou inicia um array vazio
                         let fileContent = [];
                         if (fs.existsSync(archiveFile)) {

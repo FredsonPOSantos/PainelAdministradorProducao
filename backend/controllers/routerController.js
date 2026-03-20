@@ -39,6 +39,14 @@ const createRouter = async (req, res) => {
             return res.status(409).json({ message: 'Já existe um roteador com este nome.' });
         }
 
+        // [NOVO] Verificar se o IP já existe (se fornecido) para evitar duplicação de equipamentos
+        if (ip_address && ip_address.trim() !== '') {
+            const checkIp = await pool.query('SELECT id FROM routers WHERE ip_address = $1', [ip_address.trim()]);
+            if (checkIp.rowCount > 0) {
+                return res.status(409).json({ message: 'Já existe um roteador registado com este endereço IP.' });
+            }
+        }
+
         const insertQuery = `
             INSERT INTO routers (name, ip_address, observacao, username, password, api_port, monitoring_interface, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7, 'offline')
@@ -389,69 +397,79 @@ const getRoutersStatus = async (req, res) => {
 
 const updateRouter = async (req, res) => {
     const { id } = req.params;
-    const { observacao, ip_address, is_maintenance, monitoring_interface, username, password, api_port, snmp_community } = req.body; 
+    const { name, observacao, ip_address, is_maintenance, monitoring_interface, username, password, api_port, snmp_community } = req.body; 
 
-    const fields = [];
-    const values = [];
-    let queryIndex = 1;
-
-    if (observacao !== undefined) {
-        fields.push(`observacao = $${queryIndex++}`);
-        values.push(observacao);
-    }
-    
-    // --- CORREÇÃO: Trata o campo de IP corretamente ---
-    // Permite que o IP seja definido como nulo se o campo estiver vazio.
-    if (ip_address !== undefined) {
-        fields.push(`ip_address = $${queryIndex++}`);
-        values.push(ip_address === '' ? null : ip_address);
-    }
-
-    if (is_maintenance !== undefined) {
-        fields.push(`is_maintenance = $${queryIndex++}`);
-        values.push(is_maintenance);
-    }
-
-    if (monitoring_interface !== undefined) {
-        fields.push(`monitoring_interface = $${queryIndex++}`);
-        values.push(monitoring_interface === '' ? null : monitoring_interface);
-    }
-
-    // [NOVO] Adiciona campos de credenciais da API para o monitoramento de interface
-    if (username !== undefined) {
-        fields.push(`username = $${queryIndex++}`);
-        values.push(username === '' ? null : username);
-    }
-    // A senha só é atualizada se um novo valor for fornecido
-    if (password) {
-        fields.push(`password = $${queryIndex++}`);
-        values.push(password);
-    }
-    if (api_port !== undefined) {
-        // Garante que o valor é um número ou nulo
-        const portValue = api_port ? parseInt(api_port, 10) : null;
-        fields.push(`api_port = $${queryIndex++}`);
-        values.push(isNaN(portValue) ? null : portValue);
-    }
-
-    if (snmp_community !== undefined) {
-        fields.push(`snmp_community = $${queryIndex++}`);
-        values.push(snmp_community);
-    }
-
-    if (fields.length === 0) {
-        return res.status(400).json({ message: "Nenhum campo para atualizar foi fornecido." });
-    }
-
-    values.push(id);
+    const client = await pool.connect();
 
     try {
-        const updateQuery = `UPDATE routers SET ${fields.join(', ')} WHERE id = $${queryIndex} RETURNING *`;
-        const updatedRouter = await pool.query(updateQuery, values);
+        await client.query('BEGIN');
 
-        if (updatedRouter.rowCount === 0) {
+        // 1. Obter os dados atuais do roteador
+        const currentRouterRes = await client.query('SELECT name FROM routers WHERE id = $1', [id]);
+        if (currentRouterRes.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Roteador não encontrado.' });
         }
+        const oldName = currentRouterRes.rows[0].name;
+
+        const fields = [];
+        const values = [];
+        let queryIndex = 1;
+
+        // 2. Validação e Atualização do Nome (com efeito cascata)
+        if (name && name.trim() !== '') {
+            const newName = name.trim();
+            if (newName !== oldName) {
+                // Verifica se o novo nome já pertence a outro roteador
+                const checkName = await client.query('SELECT id FROM routers WHERE name = $1 AND id != $2', [newName, id]);
+                if (checkName.rowCount > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({ message: 'Já existe outro roteador com este nome.' });
+                }
+                fields.push(`name = $${queryIndex++}`);
+                values.push(newName);
+
+                // [CASCATA] Atualiza o nome do roteador no histórico dos clientes do Hotspot para não quebrar relatórios
+                await client.query('UPDATE userdetails SET router_name = $1 WHERE router_name = $2', [newName, oldName]);
+            }
+        }
+
+        // 3. Validação do IP (evitar IPs duplicados)
+        if (ip_address !== undefined) {
+            const newIp = ip_address === '' ? null : ip_address.trim();
+            if (newIp) {
+                const checkIp = await client.query('SELECT id FROM routers WHERE ip_address = $1 AND id != $2', [newIp, id]);
+                if (checkIp.rowCount > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({ message: 'Já existe outro roteador com este endereço IP.' });
+                }
+            }
+            fields.push(`ip_address = $${queryIndex++}`);
+            values.push(newIp);
+        }
+
+        // Restantes campos
+        if (observacao !== undefined) { fields.push(`observacao = $${queryIndex++}`); values.push(observacao); }
+        if (is_maintenance !== undefined) { fields.push(`is_maintenance = $${queryIndex++}`); values.push(is_maintenance); }
+        if (monitoring_interface !== undefined) { fields.push(`monitoring_interface = $${queryIndex++}`); values.push(monitoring_interface === '' ? null : monitoring_interface); }
+        if (username !== undefined) { fields.push(`username = $${queryIndex++}`); values.push(username === '' ? null : username); }
+        if (password) { fields.push(`password = $${queryIndex++}`); values.push(password); }
+        if (api_port !== undefined) {
+            const portValue = api_port ? parseInt(api_port, 10) : null;
+            fields.push(`api_port = $${queryIndex++}`); values.push(isNaN(portValue) ? null : portValue);
+        }
+        if (snmp_community !== undefined) { fields.push(`snmp_community = $${queryIndex++}`); values.push(snmp_community); }
+
+        if (fields.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: "Nenhum campo para atualizar foi fornecido." });
+        }
+
+        values.push(id);
+        const updateQuery = `UPDATE routers SET ${fields.join(', ')} WHERE id = $${queryIndex} RETURNING *`;
+        const updatedRouter = await client.query(updateQuery, values);
+
+        await client.query('COMMIT');
 
         // [MODIFICADO] Lógica para logs específicos de manutenção
         let action = 'ROUTER_UPDATE';
@@ -480,6 +498,7 @@ const updateRouter = async (req, res) => {
 
         res.json({ message: 'Roteador atualizado com sucesso!', router: updatedRouter.rows[0] });
     } catch (error) {
+        await client.query('ROLLBACK');
         await logAction({
             req,
             action: 'ROUTER_UPDATE_FAILURE',
@@ -492,6 +511,8 @@ const updateRouter = async (req, res) => {
 
         console.error('Erro ao atualizar roteador:', error.message);
         res.status(500).json({ message: 'Erro interno do servidor.' });
+    } finally {
+        client.release();
     }
 };
 
