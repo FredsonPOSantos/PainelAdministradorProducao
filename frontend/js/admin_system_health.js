@@ -4,7 +4,6 @@ if (window.initSystemHealthPage) {
     console.warn("Tentativa de carregar admin_system_health.js múltiplas vezes.");
 } else {
     window.initSystemHealthPage = () => {
-        console.log("A inicializar Dashboard de Saúde do Sistema...");
 
         const loadHealthData = async (showLoader = false, checkRemote = false) => {
             if (showLoader && window.showPagePreloader) {

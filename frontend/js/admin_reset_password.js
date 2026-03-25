@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const resetPasswordForm = document.getElementById('resetPasswordForm');
-    const API_BASE_URL = `http://${window.location.hostname}:3000`;
+    const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+    const API_BASE_URL = isDev ? `http://${window.location.hostname}:3000` : '';
 
     // --- Carregar e Aplicar Configurações Visuais ---
     const applyVisualSettings = (settings) => {
@@ -8,13 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loginLogo = document.getElementById('loginLogo');
         if (loginLogo && settings.login_logo_url) {
-            loginLogo.src = `http://${window.location.hostname}:3000${settings.login_logo_url}`;
+            loginLogo.src = `${API_BASE_URL}${settings.login_logo_url}`;
             loginLogo.style.display = 'block';
         }
 
         const showcasePanel = document.getElementById('loginShowcase');
         if (showcasePanel && settings.background_image_url) {
-            showcasePanel.style.backgroundImage = `url('http://${window.location.hostname}:3000${settings.background_image_url}')`;
+            showcasePanel.style.backgroundImage = `url('${API_BASE_URL}${settings.background_image_url}')`;
         } else if (settings.login_background_color && showcasePanel) {
             showcasePanel.style.backgroundColor = settings.login_background_color;
         }

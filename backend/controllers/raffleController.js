@@ -222,11 +222,9 @@ const getAllRaffles = async (req, res) => {
     } catch (error) {
         // [NOVO] Adiciona log detalhado do erro no backend para facilitar a depuração
         console.error("Erro ao buscar a lista de sorteios:", error); // Mantém o log no servidor
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro ao buscar sorteios.',
-            db_error: error.message, // Adiciona o erro do DB na resposta
-            db_code: error.code 
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao buscar sorteios.'
         });
     }
 };
@@ -247,11 +245,9 @@ const getRaffleDetails = async (req, res) => {
     } catch (error) {
         // [MODIFICADO] Adiciona log detalhado do erro no backend e na resposta da API
         console.error(`Erro ao buscar detalhes do sorteio ID ${id}:`, error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro ao buscar detalhes do sorteio.',
-            db_error: error.message, // Passa a mensagem de erro real do DB para depuração
-            db_code: error.code
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao buscar detalhes do sorteio.'
         });
     }
 };

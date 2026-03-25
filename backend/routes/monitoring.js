@@ -10,7 +10,7 @@ const { checkPermission } = require('../middlewares/permissionMiddleware');
  * @desc    Busca todos os roteadores do PostgreSQL e o seu status de monitorização mais recente da InfluxDB.
  * @access  Private (adicione o seu middleware de autenticação aqui)
  */
-router.get('/router-status', /* seuMiddlewareDeAuth, */ async (req, res) => {
+router.get('/router-status', [verifyToken, checkPermission('routers.monitoring.read')], async (req, res) => {
     // [REFEITO] Esta rota está obsoleta. A lógica foi movida e melhorada na rota /all-routers-status.
     // Mantida para compatibilidade, mas redireciona para a nova lógica para centralizar o código.
     console.warn('[AVISO] A rota /api/monitoring/router-status está obsoleta. Use /api/monitoring/all-routers-status.');

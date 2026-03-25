@@ -3,7 +3,6 @@ if (window.initHotspotPage) {
     console.warn("Tentativa de carregar admin_hotspot.js múltiplas vezes.");
 } else {
     window.initHotspotPage = () => {
-        console.log("A inicializar a página de Relatórios do Hotspot (V2 - com verificação de função)...");
 
         // --- ELEMENTOS DO DOM ---
         const filterForm = document.getElementById('hotspotFilterForm');

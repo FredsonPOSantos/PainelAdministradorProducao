@@ -313,7 +313,6 @@ const initRouterDashboard = () => {
         fetchLiveSummary(); // Busca imediatamente
         liveUpdateInterval = setInterval(fetchLiveSummary, 5000); // Atualiza a cada 5 segundos
         if (liveUpdateToggle) liveUpdateToggle.checked = true;
-        console.log("Live updates iniciados.");
     }
 
     /**
@@ -325,7 +324,6 @@ const initRouterDashboard = () => {
             liveUpdateInterval = null;
         }
         if (liveUpdateToggle) liveUpdateToggle.checked = false;
-        console.log("Live updates parados.");
     }
 
     /**

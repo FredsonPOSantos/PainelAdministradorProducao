@@ -4,7 +4,6 @@ if (window.initNetworkStatusPage) {
     console.warn("Tentativa de carregar network_status.js múltiplas vezes.");
 } else {
     window.initNetworkStatusPage = () => {
-        console.log("A inicializar a página de Status da Rede...");
 
     // [NOVO] Fallback para o preloader se a página for aberta diretamente (standalone)
     if (typeof window.showPagePreloader !== 'function') {

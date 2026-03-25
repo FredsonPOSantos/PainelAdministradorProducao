@@ -32,3 +32,10 @@ bfg-1.15.0.jar
 # Ignorar o aplicativo mobile
 rota-noc-app/
  bfg-1.15.0.jar
+
+backend\tests
+
+CHANGELOG_ATUALIZACAO DE SEGURANCAS.MD
+CHECKLIST_DEPLOY.md
+guia de migração.md
+auth.test.js

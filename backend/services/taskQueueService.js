@@ -15,8 +15,15 @@ try {
 const processPendingTasks = async () => {
     if (!RouterOSClient) return;
 
-    const client = await pool.connect();
+    let client;
+    const dbErrorHandler = (err) => {
+        console.error('❌ [TASK-QUEUE] Erro silencioso na conexão PG:', err.message);
+    };
+
     try {
+        client = await pool.connect();
+        client.on('error', dbErrorHandler);
+
         // Busca tarefas 'pending' de roteadores que agora estão 'online'
         const query = `
             SELECT t.id, t.action, t.payload, t.retry_count, t.created_by,
@@ -34,7 +41,10 @@ const processPendingTasks = async () => {
     } catch (err) {
         console.error('❌ [TASK-QUEUE] Erro ao consultar fila:', err.message);
     } finally {
-        client.release();
+        if (client) {
+            client.removeListener('error', dbErrorHandler);
+            client.release();
+        }
     }
 };
 

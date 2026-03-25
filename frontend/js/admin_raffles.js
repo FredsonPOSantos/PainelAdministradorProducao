@@ -4,7 +4,6 @@ if (window.initRafflesPage) {
     console.warn("Tentativa de carregar admin_raffles.js múltiplas vezes.");
 } else {
     window.initRafflesPage = () => {
-        console.log("A inicializar a página de gestão de Sorteios...");
 
         // --- ELEMENTOS DO DOM ---
         const createRaffleForm = document.getElementById('createRaffleForm');
@@ -29,13 +28,13 @@ if (window.initRafflesPage) {
         const closeProgressModalBtn = document.getElementById('closeProgressModalBtn');
 
         // --- [NOVO] Conexão Socket.io ---
-        const socket = io(`http://${window.location.hostname}:3000`, {
+        const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+        const socket = io(isDev ? `http://${window.location.hostname}:3000` : '', {
             transports: ['websocket'], // Força websocket para maior fiabilidade
             reconnectionAttempts: 5
         });
 
         socket.on('connect', () => {
-            console.log('Conectado ao servidor de progresso via Socket.io. ID:', socket.id);
         });
 
         socket.on('connect_error', (err) => {
@@ -45,14 +44,12 @@ if (window.initRafflesPage) {
         // [NOVO] Função de limpeza para desconectar o socket ao sair da página
         window.cleanupRafflesPage = () => {
             if (socket) {
-                console.log('A desconectar socket de sorteios...');
                 socket.disconnect();
             }
         };
 
         // --- [NOVO] Listener para eventos de progresso ---
         socket.on('raffle_progress', (data) => {
-            console.log('Progresso recebido:', data);
             if (progressModal.classList.contains('hidden')) return;
 
             progressStatusText.textContent = data.status;

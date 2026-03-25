@@ -3,7 +3,6 @@ if (window.initHomePage) {
     console.warn("Tentativa de carregar admin_home.js múltiplas vezes.");
 } else {
     window.initHomePage = async () => {
-        console.log("A inicializar a página principal do Dashboard (V1 - Estável)...");
         
         // Função para buscar e preencher os dados de um card específico
         const fetchCardData = async (endpoint, totalId, activeId = null, inactiveId = null) => {
@@ -73,7 +72,6 @@ if (window.initHomePage) {
         // Verifica se o utilizador tem permissão para ver dados analíticos
         if (window.currentUserProfile && (window.currentUserProfile.role === 'master' || window.currentUserProfile.permissions['analytics.read'])) {
             try {
-                console.log("Carregando Dashboard Analítico integrado...");
                 
                 // Busca o HTML da página analítica
                 const response = await fetch('/pages/analytics_dashboard.html');

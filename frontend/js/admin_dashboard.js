@@ -95,7 +95,6 @@ window.applyVisualSettings = (settings) => {
         console.warn("applyVisualSettings: Configurações não fornecidas.");
         return;
     }
-    console.log("%c[applyVisualSettings] Invocada com:", "color: lightblue; font-weight: bold;", settings);
 
     const root = document.documentElement;
 
@@ -150,10 +149,8 @@ window.applyVisualSettings = (settings) => {
                 cssRules += `html, body, input, select, textarea, button, .sidebar, .nav-item { font-family: ${value} !important; }`;
                 continue;
             }
-            console.log(` -> Aplicando ${styleMap[key]} = ${value}`);
             root.style.setProperty(styleMap[key], value);
         } else {
-            console.log(` -> Chave '${key}' está nula ou indefinida. Pulando.`);
         }
     }
 
@@ -176,7 +173,6 @@ window.applyVisualSettings = (settings) => {
         if (!baseTextColor) {
             baseTextColor = contrastColor;
             root.style.setProperty('--text-primary', baseTextColor);
-            console.log(` -> Auto-ajuste: --text-primary para ${baseTextColor}`);
         }
 
         // Ajusta labels e títulos se não definidos
@@ -227,7 +223,8 @@ window.applyVisualSettings = (settings) => {
     const headerLogo = document.getElementById('headerLogo');
     if (headerLogo) {
         if (settings.logo_url) {
-            const API_ADMIN_URL = `http://${window.location.hostname}:3000`;
+            const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+            const API_ADMIN_URL = isDev ? `http://${window.location.hostname}:3000` : '';
             const logoPath = settings.logo_url.startsWith('/') ? settings.logo_url : '/' + settings.logo_url;
             const newLogoSrc = `${API_ADMIN_URL}${logoPath}?t=${Date.now()}`;
             headerLogo.src = newLogoSrc;
@@ -286,7 +283,6 @@ const setupIdleMonitor = () => {
     const timeoutMinutes = window.systemSettings?.admin_session_timeout || 30;
     const timeoutMillis = timeoutMinutes * 60 * 1000;
 
-    console.log(`[IdleMonitor] Monitor de inatividade iniciado. Tempo limite: ${timeoutMinutes} minutos.`);
 
     const resetTimer = () => {
         clearTimeout(idleTimer);
@@ -330,10 +326,8 @@ const setupIdleMonitor = () => {
 // --- INICIALIZAÇÃO PRINCIPAL (DOMContentLoaded) ---
 document.addEventListener('DOMContentLoaded', async () => {
     
-    console.log("DOM Carregado (V13.1.3). Iniciando Dashboard...");
     const token = localStorage.getItem('adminToken');
     if (!token) {
-        console.log("Nenhum token (V13.1.3). Redirecionando."); 
         window.location.href = 'admin_login.html';
         return;
     }
@@ -549,7 +543,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        console.log(`loadPage (V13.1.3): Carregando ${pageName}...`);
         
         window.pageParams = params; // Store params globally
 
@@ -597,7 +590,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // [NOVO] Limpeza específica para a página de logs para permitir reinicialização
                 if (document.body.dataset.logsPageInitialized) {
                     delete document.body.dataset.logsPageInitialized;
-                    console.log("Cleanup: Flag de inicialização da página de logs removida.");
                 }
                 // [NOVO] Limpeza específica para a página de saúde do sistema
                 if (window.cleanupSystemHealthPage) {
@@ -629,8 +621,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // [CORREÇÃO MIGRAÇÃO] Força a URL do Socket.IO a usar o hostname correto,
                         // evitando problemas com IPs hardcoded (127.0.0.1) nos ficheiros HTML.
                         if (attr.name.toLowerCase() === 'src' && attr.value.includes('/socket.io/socket.io.js')) {
-                            const correctSocketUrl = `http://${window.location.hostname}:3000/socket.io/socket.io.js`;
-                            console.log(`[Socket.IO Loader] Corrigindo URL do Socket.IO para: ${correctSocketUrl}`);
+                        const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                        const correctSocketUrl = isDev ? `http://${window.location.hostname}:3000/socket.io/socket.io.js` : '/socket.io/socket.io.js';
                             newScript.setAttribute('src', correctSocketUrl);
                         } else {
                             newScript.setAttribute(attr.name, attr.value);
@@ -689,7 +681,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         isProfileLoaded = false;
         window.currentUserProfile = null;
         try {
-            console.log("fetchUserProfile (V13.6.1): Buscando perfil e permissões...");
             const data = await apiRequest('/api/admin/profile');
             
             // [CORRIGIDO] Usa a nova resposta simplificada da API
@@ -698,7 +689,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const userProfile = data.data;
-            console.log(`fetchUserProfile: Perfil recebido (Role: ${userProfile.role}).`);
             window.currentUserProfile = userProfile;
             isProfileLoaded = true;
 
@@ -710,7 +700,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const headerAvatar = document.getElementById('headerUserAvatar');
             if (headerAvatar) {
                 if (userProfile.avatar_url) {
-                    headerAvatar.src = `http://${window.location.hostname}:3000${userProfile.avatar_url}`;
+                const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                headerAvatar.src = `${isDev ? `http://${window.location.hostname}:3000` : ''}${userProfile.avatar_url}`;
                     headerAvatar.style.display = 'block';
                 } else {
                     headerAvatar.style.display = 'none';
@@ -748,12 +739,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (userProfile.must_change_password) {
-                console.log("fetchUserProfile (V13.6.1): Senha obrigatória.");
                 showForcePasswordChangeModal();
                 return false;
             }
 
-            console.log("fetchUserProfile (V13.6.1): Perfil e permissões OK.");
             return true;
 
         } catch (error) {
@@ -777,7 +766,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- [LÓGICA V13.6.1] applyMenuPermissions (Baseada em Permissões) ---
     const applyMenuPermissions = (permissions, userRole) => {
-        console.log(`applyMenuPermissions (V13.6.1): Aplicando permissões...`, permissions);
 
         if (!permissions) {
             console.error("applyMenuPermissions (V13.6.1): Objeto de permissões não fornecido!");
@@ -849,14 +837,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        console.log("applyMenuPermissions (V13.6.1): Permissões do menu aplicadas.");
     };
 
 
     // --- Logout ---
     if (logoutButton) {
         logoutButton.onclick = () => { // Usar onclick para garantir que não haja múltiplos listeners
-            console.log("Logout (V13.1.3).");
             localStorage.removeItem('adminToken');
             window.currentUserProfile = null;
             isProfileLoaded = false;
@@ -916,7 +902,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (changePasswordForm) {
                 changePasswordForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
-                    console.log("Form troca senha submetido (V13.1.3).");
                     const btn = changePasswordForm.querySelector('button[type="submit"]');
                     const currIn = document.getElementById('currentTemporaryPassword');
                     const newIn = document.getElementById('newPassword');
@@ -1017,23 +1002,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!profileOK) {
         // Se o perfil falhar (token inválido) ou precisar de troca de senha,
         // a inicialização é interrompida aqui.
-        console.log("Dashboard (V13.1.3): Inicialização INTERROMPIDA (fetchUserProfile falhou ou bloqueou).");
         return;
     }
 
     // 2. Busca e aplica as configurações gerais para TODOS os utilizadores
     try {
-        console.log("Dashboard (V13.1.3): Buscando configurações gerais...");
         const settingsResponse = await apiRequest('/api/settings/general');
-        // LOG ADICIONADO: Mostra a resposta completa da API
-        console.log('%c[Dashboard Init] Resposta da API /api/settings/general:', 'color: orange;', settingsResponse);
 
         // [CORRIGIDO] A API pode retornar o objeto de configurações diretamente ou dentro de uma propriedade 'data'.
         const settings = settingsResponse.data || settingsResponse;
         if (settings && Object.keys(settings).length > 0) {
             window.systemSettings = settings;
             applyVisualSettings(window.systemSettings);
-            console.log("%c[Dashboard Init] Configurações visuais aplicadas com sucesso.", "color: green;");
             
             // [NOVO] Inicia o monitor de inatividade após carregar as configurações
             setupIdleMonitor();
@@ -1062,13 +1042,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     // 5. Carrega a página inicial
-    console.log("Dashboard (V14.5): Carregando página inicial (admin_home)...");
     const homeLink = document.querySelector('.sidebar-nav .nav-item[data-page="admin_home"]');
     
     // [CORRIGIDO] Carrega explicitamente o conteúdo da página inicial.
     // Anteriormente, assumia-se que o HTML já estava presente, o que causava o erro de carregamento.
     await loadPage('admin_home', homeLink);
 
-    console.log("Dashboard (V13.1.3): Inicialização concluída com sucesso.");
 
 }); // Fim do DOMContentLoaded

@@ -4,7 +4,6 @@ if (window.initSupportPage) {
     console.warn("Tentativa de carregar support.js múltiplas vezes.");
 } else {
     window.initSupportPage = (params = {}) => {
-        console.log("A inicializar a página de Suporte...");
 
         const ticketListDiv = document.getElementById('ticket-list');
         const ticketDetailPanel = document.getElementById('ticket-detail-panel');
@@ -34,7 +33,6 @@ if (window.initSupportPage) {
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 pollingInterval = null;
-                console.log("Polling de suporte parado.");
             }
         };
 
@@ -192,7 +190,8 @@ if (window.initSupportPage) {
                 // [NOVO] Lógica de Avatar
                 let avatarHtml = '';
                 if (msg.avatar_url) {
-                    avatarHtml = `<img src="http://${window.location.hostname}:3000${msg.avatar_url}" class="message-avatar" alt="Avatar">`;
+                const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                avatarHtml = `<img src="${isDev ? `http://${window.location.hostname}:3000` : ''}${msg.avatar_url}" class="message-avatar" alt="Avatar">`;
                 } else if (!msg.user_email) {
                     avatarHtml = `<div class="message-avatar ai-avatar"><i class="fas fa-robot"></i></div>`; // Avatar IA
                 } else {
@@ -527,7 +526,6 @@ if (window.initSupportPage) {
             // [MODIFICADO] Verifica se um ticketId foi passado via parâmetros (do portal) ou pelo método antigo (SPA)
             const ticketIdToLoad = params.ticketId || window.pageParams?.ticketId;
             if (ticketIdToLoad) {
-                console.log(`A carregar ticket ${ticketIdToLoad} a partir da URL/notificação...`);
                 loadTicketDetails(ticketIdToLoad);
                 // Limpa os parâmetros globais para não recarregar na próxima navegação interna
                 if (window.pageParams) window.pageParams = {};

@@ -20,8 +20,7 @@ const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
     console.warn('⚠️ [AI-SERVICE] GEMINI_API_KEY não encontrada no .env. Assistente desativado.');
 } else {
-    // Log de segurança (mostra apenas os primeiros caracteres)
-    console.log(`✅ [AI-SERVICE] Chave de API detetada: ${apiKey.substring(0, 5)}...`);
+    console.log('✅ [AI-SERVICE] Chave de API configurada (valor não registado em log por segurança).');
 }
 
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;

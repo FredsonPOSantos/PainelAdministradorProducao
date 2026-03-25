@@ -1,6 +1,5 @@
 // Ficheiro: js/admin_routers.js
 window.initRoutersPage = () => {
-        console.log("A inicializar a página de gestão de Roteadores...");
         const groupPrefixes = { 'CS': 'Cidade Sol', 'RT': 'Rota Transportes', 'GB': 'Grupo Brasileiro', 'EB': 'Expresso Brasileiro', 'MKT': 'Marketing', 'VM': 'Via Metro', 'VIP': 'Sala Vip', 'GNC': 'Genérico' };
 
         // --- ELEMENTOS DO DOM ---
@@ -157,11 +156,11 @@ window.initRoutersPage = () => {
                 const routerCount = group.router_count || 0;
                 row.innerHTML = `
                     <td>${group.id}</td>
-                    <td>${group.name}</td>
-                    <td>${group.observacao || 'N/A'}</td>
+                    <td>${escapeHtml(group.name)}</td>
+                    <td>${escapeHtml(group.observacao || 'N/A')}</td>
                     <td>${routerCount}</td> 
                     <td class="action-buttons">
-                        <button class="btn-preview" onclick="window.handleShowGroupAnalytics(${group.id}, '${group.name.replace(/'/g, "\\'")}')" title="Ver Análise de Utilizadores"><i class="fas fa-eye"></i></button>
+                        <button class="btn-preview" onclick="window.handleShowGroupAnalytics(${group.id}, '${escapeHtml(group.name).replace(/'/g, "\\'")}')" title="Ver Análise de Utilizadores"><i class="fas fa-eye"></i></button>
                         <button class="btn-edit" onclick="openModalForEditGroup(${group.id})" title="Editar Grupo"><i class="fas fa-pencil-alt"></i></button>
                         <button class="btn-delete" onclick="handleDeleteGroup(${group.id})" title="Eliminar Grupo"><i class="fas fa-trash-alt"></i></button>
                     </td>
@@ -233,9 +232,9 @@ window.initRoutersPage = () => {
 
                 row.innerHTML = `
                     <td>${router.id}</td>
-                    <td>${router.name}</td>
-                    <td><span class="status-dot ${statusDotClass}"></span> ${statusLabel}</td>
-                    <td>${router.observacao || 'N/A'}</td> 
+                    <td>${escapeHtml(router.name)}</td>
+                    <td><span class="status-dot ${escapeAttr(statusDotClass)}"></span> ${escapeHtml(statusLabel)}</td>
+                    <td>${escapeHtml(router.observacao || 'N/A')}</td> 
                     <td>${lastSeenDisplay}</td>
                     <td class="action-buttons">
                         <button class="btn-secondary btn-refresh" onclick="window.refreshSingleRouter(${router.id})" title="Forçar verificação imediata de status"><i class="fas fa-sync-alt"></i></button>
@@ -277,11 +276,11 @@ window.initRoutersPage = () => {
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">Grupo</span>
-                                <span class="detail-value">${groupName}</span>
+                                <span class="detail-value">${escapeHtml(groupName)}</span>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">Interface Monitorada</span>
-                                <span class="detail-value">${router.monitoring_interface || '-'}</span>
+                                <span class="detail-value">${escapeHtml(router.monitoring_interface || '-')}</span>
                             </div>
                         </div>
                     </td>
@@ -544,10 +543,10 @@ window.initRoutersPage = () => {
                     tableHtml += `
                         <tr>
                             <td>${timestamp}</td>
-                            <td>${log.user_email || 'Sistema'}</td>
-                            <td>${log.action}</td>
+                            <td>${escapeHtml(log.user_email || 'Sistema')}</td>
+                            <td>${escapeHtml(log.action)}</td>
                             <td>${statusBadge}</td>
-                            <td>${log.description || ''}</td>
+                            <td>${escapeHtml(log.description || '')}</td>
                         </tr>
                     `;
                 });
@@ -663,17 +662,11 @@ window.initRoutersPage = () => {
 
             let processedCount = 0;
             const totalCount = allRouters.length;
+            const CONCURRENCY_LIMIT = 5; // Limite de verificações paralelas
 
-            for (const router of allRouters) {
-                // [NOVO] Atualiza o texto do botão para mostrar progresso real (ex: "Verificando 5/50...")
-                checkStatusBtn.textContent = `Verificando ${processedCount + 1}/${totalCount}...`;
-
-                // [NOVO] Verifica se o processo foi cancelado ou se o utilizador saiu da página
-                // document.body.contains(checkStatusBtn) retorna false se o botão não estiver mais no DOM (mudança de página)
-                if (!isCheckingStatus || !document.body.contains(checkStatusBtn)) {
-                    isCheckingStatus = false;
-                    break;
-                }
+            // Função auxiliar para verificar um único roteador
+            const checkSingleRouter = async (router) => {
+                if (!isCheckingStatus || !document.body.contains(checkStatusBtn)) return;
 
                 // Tenta encontrar a linha na tabela (se estiver na página atual)
                 const row = routersTableBody.querySelector(`tr[data-router-id="${router.id}"]`);
@@ -693,11 +686,6 @@ window.initRoutersPage = () => {
                     if(availEl) availEl.textContent = '...';
                     if(downtimeEl) downtimeEl.textContent = '...';
                 }
-
-                // [NOVO] Adiciona um delay de 800ms para permitir acompanhar visualmente
-                await new Promise(resolve => setTimeout(resolve, 800));
-                // [MODIFICADO] Aumentado para 1.5s (1500ms) para facilitar o acompanhamento visual
-                await new Promise(resolve => setTimeout(resolve, 1500));
 
                 try {
                     const pingResponse = await apiRequest(`/api/routers/${router.id}/ping`, 'POST', { period: selectedPeriod });
@@ -773,9 +761,21 @@ window.initRoutersPage = () => {
                     router.status = 'offline'; // Atualiza cache
                 }
 
-                // [NOVO] Atualiza a barra de progresso
+                // Atualiza a barra de progresso individualmente
                 processedCount++;
                 progressBar.style.width = `${(processedCount / totalCount) * 100}%`;
+                checkStatusBtn.textContent = `Verificando ${processedCount}/${totalCount}...`;
+            };
+
+            // Processamento em lotes com Promise.all
+            for (let i = 0; i < allRouters.length; i += CONCURRENCY_LIMIT) {
+                if (!isCheckingStatus || !document.body.contains(checkStatusBtn)) {
+                    isCheckingStatus = false;
+                    break;
+                }
+                
+                const batch = allRouters.slice(i, i + CONCURRENCY_LIMIT);
+                await Promise.all(batch.map(router => checkSingleRouter(router)));
             }
             
             // Reset do estado
@@ -867,8 +867,8 @@ window.initRoutersPage = () => {
                     const item = document.createElement('div');
                     item.className = 'checkbox-item';
                     item.innerHTML = `
-                        <input type="checkbox" id="discover-${name}" name="routerNames" value="${name}" checked>
-                        <label for="discover-${name}"><span class="checkbox-item-name">${name}</span></label>
+                        <input type="checkbox" id="discover-${escapeAttr(name)}" name="routerNames" value="${escapeAttr(name)}" checked>
+                        <label for="discover-${escapeAttr(name)}"><span class="checkbox-item-name">${escapeHtml(name)}</span></label>
                     `;
                     discoveredRouterList.appendChild(item);
                 });
@@ -944,8 +944,8 @@ window.initRoutersPage = () => {
                     <label class="checkbox-item" for="group-router-${router.id}">
                         <input type="checkbox" id="group-router-${router.id}" name="routerIds" value="${router.id}" ${isChecked}>
                         <div class="checkbox-item-text">
-                            <span class="checkbox-item-name">${router.name}</span>
-                            <span class="checkbox-item-description">${router.observacao || 'Sem descrição.'}</span>
+                            <span class="checkbox-item-name">${escapeHtml(router.name)}</span>
+                            <span class="checkbox-item-description">${escapeHtml(router.observacao || 'Sem descrição.')}</span>
                         </div>
                     </label>`;
                 routerListDiv.innerHTML += itemHTML;

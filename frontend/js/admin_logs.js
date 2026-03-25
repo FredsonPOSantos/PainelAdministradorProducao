@@ -7,7 +7,6 @@ if (document.body.dataset.logsPageInitialized) {
     console.warn("Tentativa de inicializar admin_logs.js múltiplas vezes. Execução ignorada.");
 } else {
     document.body.dataset.logsPageInitialized = "true";
-    console.log("A inicializar a página de Logs (com abas)...");
 
     // --- O código que estava dentro de window.initLogsPage() vem para cá ---
 

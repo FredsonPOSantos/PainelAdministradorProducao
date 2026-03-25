@@ -2,7 +2,6 @@ if (window.initBannersPage) {
     console.warn("Tentativa de carregar admin_banners.js múltiplas vezes. A segunda execução foi ignorada.");
 } else {
     window.initBannersPage = () => {
-        console.log("A inicializar a página de gestão de Banners...");
 
         // --- ELEMENTOS DO DOM ---
         const addBannerBtn = document.getElementById('addBannerBtn');
@@ -78,8 +77,8 @@ if (window.initBannersPage) {
 
                     row.innerHTML = `
                         <td>${banner.id}</td>
-                        <td>${banner.name} ${systemBadge}</td>
-                        <td>${banner.type}</td>
+                        <td>${escapeHtml(banner.name)} ${systemBadge}</td>
+                        <td>${escapeHtml(banner.type)}</td>
                         <td><span class="badge status-${banner.is_active ? 'active' : 'inactive'}">${banner.is_active ? 'Ativo' : 'Inativo'}</span></td>
                         <td class="action-buttons">
                             ${actionButtons}
@@ -148,9 +147,9 @@ if (window.initBannersPage) {
             if (!banner) return;
             
             // [CORREÇÃO] Constrói a URL absoluta para o backend (porta 3000) se for relativa
-            const imageUrl = banner.image_url.startsWith('/') 
-                ? `http://${window.location.hostname}:3000${banner.image_url}` 
-                : banner.image_url;
+            const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+            const baseUrl = isDev ? `http://${window.location.hostname}:3000` : '';
+            const imageUrl = banner.image_url.startsWith('/') ? `${baseUrl}${banner.image_url}` : banner.image_url;
 
             const lightbox = document.createElement('div');
             lightbox.className = 'modal-overlay visible';
@@ -236,7 +235,8 @@ if (window.initBannersPage) {
         const updateImagePreview = (url) => {
             if (url) {
                 // [CORREÇÃO] Usa window.location.hostname em vez de localhost hardcoded
-                imagePreview.src = url.startsWith('/') ? `http://${window.location.hostname}:3000${url}` : url;
+            const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+            imagePreview.src = url.startsWith('/') ? `${isDev ? `http://${window.location.hostname}:3000` : ''}${url}` : url;
                 imagePreview.classList.remove('hidden');
                 previewPlaceholder.classList.add('hidden');
             } else {

@@ -4,7 +4,6 @@ if (window.initProfilePage) {
     console.warn("Tentativa de carregar admin_profile.js múltiplas vezes.");
 } else {
     window.initProfilePage = () => {
-        console.log("A inicializar a página de Perfil...");
 
         // --- Elementos do DOM ---
         const profileNameDisplay = document.getElementById('profileNameDisplay');
@@ -61,7 +60,8 @@ if (window.initProfilePage) {
         // Atualiza a interface do Avatar (Imagem ou Iniciais)
         const updateAvatarUI = (url, name) => {
             if (url) {
-                profileAvatarDisplay.innerHTML = `<img src="http://${window.location.hostname}:3000${url}" alt="Avatar" onerror="this.style.display='none'; this.parentElement.innerHTML='<span>ERRO</span>'">`;
+            const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+            profileAvatarDisplay.innerHTML = `<img src="${isDev ? `http://${window.location.hostname}:3000` : ''}${url}" alt="Avatar" onerror="this.style.display='none'; this.parentElement.innerHTML='<span>ERRO</span>'">`;
             } else {
                 const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'US';
                 profileAvatarDisplay.innerHTML = `<span id="profileInitials">${initials}</span>`;
@@ -174,7 +174,8 @@ if (window.initProfilePage) {
                     showNotification('Foto de perfil atualizada!', 'success');
                     // Atualiza o avatar no cabeçalho principal também, se existir
                     const headerAvatar = document.getElementById('headerUserAvatar');
-                    if (headerAvatar) headerAvatar.src = `http://${window.location.hostname}:3000${response.data.avatar_url}`;
+                const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                if (headerAvatar) headerAvatar.src = `${isDev ? `http://${window.location.hostname}:3000` : ''}${response.data.avatar_url}`;
                 }
             } catch (error) {
                 showNotification(`Erro no upload: ${error.message}`, 'error');

@@ -156,16 +156,18 @@ async function checkAndUpgradeSchema(client) {
                 reset_token_expires TIMESTAMP,
                 avatar_url VARCHAR(255),
                 theme_preference VARCHAR(50) DEFAULT 'default',
-                theme_preference VARCHAR(50) DEFAULT 'vscode',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         console.log("   ✅ Tabela 'admin_users' criada.");
 
-        // Cria utilizador padrão: admin@rota.com / admin
+        // Cria utilizador padrão: admin@rota.com (senha via env em produção)
         try {
             const salt = await bcrypt.genSalt(10);
-            // [SEGURANÇA] Usa variável de ambiente ou fallback, evitando hardcode total
+            // Em produção, exige DEFAULT_ADMIN_PASS na criação inicial da tabela
+            if (process.env.NODE_ENV === 'production' && !process.env.DEFAULT_ADMIN_PASS) {
+                throw new Error('DEFAULT_ADMIN_PASS não definido para produção.');
+            }
             const defaultPass = process.env.DEFAULT_ADMIN_PASS || 'admin';
             const hash = await bcrypt.hash(defaultPass, salt);
             
@@ -176,6 +178,9 @@ async function checkAndUpgradeSchema(client) {
             console.log(`   ✅ Utilizador padrão criado: admin@rota.com / ${process.env.DEFAULT_ADMIN_PASS ? '******' : 'admin'}`);
         } catch (err) {
             console.error("   ❌ Erro ao criar utilizador padrão:", err.message);
+            if (process.env.NODE_ENV === 'production' && err.message && err.message.includes('DEFAULT_ADMIN_PASS')) {
+                throw err;
+            }
         }
     }
 

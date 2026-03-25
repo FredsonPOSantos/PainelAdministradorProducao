@@ -9,9 +9,16 @@ const path = require('path');
  */
 const runDailyConsolidation = async () => {
     console.log('📅 [HISTÓRICO] Iniciando consolidação diária de dados...');
-    const client = await pool.connect();
+    
+    let client;
+    const dbErrorHandler = (err) => {
+        console.error('❌ [HISTÓRICO] Erro silencioso na conexão PG:', err.message);
+    };
     
     try {
+        client = await pool.connect();
+        client.on('error', dbErrorHandler);
+
         // 1. Define o dia a ser processado (Ontem)
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -66,7 +73,10 @@ const runDailyConsolidation = async () => {
     } catch (error) {
         console.error('❌ [HISTÓRICO] Erro na consolidação:', error.message);
     } finally {
-        client.release();
+        if (client) {
+            client.removeListener('error', dbErrorHandler);
+            client.release();
+        }
     }
 };
 

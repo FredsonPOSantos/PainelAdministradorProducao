@@ -719,7 +719,8 @@ window.initSettingsPage = () => {
                     }
                     const hasUrl = !!url;
                     preview.style.display = hasUrl ? 'block' : 'none';
-                    if (hasUrl) preview.src = `http://${window.location.hostname}:3000${url}?v=${Date.now()}`;
+                const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                if (hasUrl) preview.src = `${isDev ? `http://${window.location.hostname}:3000` : ''}${url}?v=${Date.now()}`;
                     
                     if (removeBtn) {
                         removeBtn.style.display = hasUrl ? 'inline-block' : 'none';
@@ -1361,7 +1362,8 @@ window.initSettingsPage = () => {
                     item.className = 'media-item';
                     
                     const isImage = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(file.name);
-                    const fileUrl = `http://${window.location.hostname}:3000${file.url}`;
+                    const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                    const fileUrl = `${isDev ? `http://${window.location.hostname}:3000` : ''}${file.url}`;
                     const previewHtml = isImage 
                         ? `<img src="${fileUrl}" alt="${file.name}" class="media-preview">`
                         : `<div class="media-preview" style="display:flex; align-items:center; justify-content:center; background:var(--background-dark); font-size:3rem; color:var(--text-secondary); height: 120px;"><i class="fas fa-file-code"></i></div>`;
@@ -1535,7 +1537,6 @@ window.initSettingsPage = () => {
         // 3. Cria uma função de "limpeza" que usa as mesmas referências para remover os listeners.
         //    Esta função será chamada pelo `admin_dashboard.js` ao navegar para outra página.
         window.cleanupSettingsPage = () => {
-            console.log("Executando cleanupSettingsPage para remover listeners de políticas.");
             viewTermsBtn?.removeEventListener('click', policyListeners.openTerms);
             viewMarketingPolicyBtn?.removeEventListener('click', policyListeners.openMarketing);
             policyModal?.querySelector('.modal-close-btn')?.removeEventListener('click', policyListeners.closeModal);

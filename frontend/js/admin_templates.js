@@ -8,7 +8,6 @@ if (window.initTemplatesPage) {
      * e a função seja acessível por outros scripts.
      */
     window.initTemplatesPage = () => {
-        console.log("A inicializar a página de gestão de templates...");
 
         // --- ELEMENTOS DO DOM ---
         // A lógica daqui para baixo permanece idêntica à sua versão original.
@@ -94,9 +93,9 @@ if (window.initTemplatesPage) {
 
                     row.innerHTML = `
                         <td>${template.id}</td>
-                        <td>${template.name} ${systemBadge}</td>
-                        <td>${template.base_model}</td>
-                        <td>${template.login_type}</td>
+                        <td>${escapeHtml(template.name)} ${systemBadge}</td>
+                        <td>${escapeHtml(template.base_model)}</td>
+                        <td>${escapeHtml(template.login_type)}</td>
                         <td class="action-buttons">
                             ${actionButtons}
                         </td>

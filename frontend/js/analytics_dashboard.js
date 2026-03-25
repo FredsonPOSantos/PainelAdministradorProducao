@@ -4,7 +4,6 @@ if (window.initAnalyticsDashboard) {
     console.warn("Tentativa de carregar analytics_dashboard.js múltiplas vezes.");
 } else {
     window.initAnalyticsDashboard = () => {
-        console.log("A inicializar o Dashboard Analítico...");
 
         // [NOVO] Reutiliza o Preloader (Autocarro) para mostrar carregamento
         const preloader = document.getElementById('page-preloader');
@@ -198,9 +197,7 @@ if (window.initAnalyticsDashboard) {
                     routerActivityBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">A carregar dados...</td></tr>';
                 }
 
-                console.log('[loadAnalyticsData] A chamar apiRequest para /api/dashboard/analytics...');
                 const response = await apiRequest('/api/dashboard/analytics');
-                console.log('[loadAnalyticsData] Objeto recebido de apiRequest:', response);
 
                 if (!response || !response.success) {
                     throw new Error(response.message || 'Falha ao carregar dados analíticos.');
@@ -209,7 +206,6 @@ if (window.initAnalyticsDashboard) {
                 // [CORRIGIDO] A API retorna { success: true, data: { ... } }. O objeto de dados está em response.data.
                 const data = response.data;
                 analyticsPageData = data; // [NOVO] Armazena todos os dados
-                console.log('[loadAnalyticsData] Dados extraídos com sucesso:', data);
 
                 // Preenche os cards principais
                 fillCard('loginsSuccess', data.logins.success);
@@ -247,7 +243,6 @@ if (window.initAnalyticsDashboard) {
 
 
                 
-                console.log('[loadAnalyticsData] Cards preenchidos com sucesso.');
 
                 // Preenche a tabela de atividade por roteador (usando a nova função)
                 renderTable('routerActivityBody', data.routerActivity || [], [
@@ -336,7 +331,6 @@ if (window.initAnalyticsDashboard) {
                 loginsChartInstance.destroy();
             }
 
-            console.log("Preparado para renderizar gráfico com os dados:", chartData);
 
             // O backend deve retornar um objeto com 'labels' (dias) e 'data' (contagens)
             // Ex: { labels: ['01/01', '02/01'], data: [10, 15] }

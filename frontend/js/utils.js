@@ -62,7 +62,6 @@ function applyTheme(theme) {
     // Adiciona a classe do novo tema, se não for o padrão
     if (theme && theme !== 'default') {
         document.body.classList.add(`theme-${theme}`);
-        console.log(`[applyTheme] Tema '${theme}' aplicado.`);
     }
 }
 
@@ -75,7 +74,8 @@ function applyTheme(theme) {
  * @returns {Promise<object>} A resposta da API em formato JSON.
  */
 async function apiRequest(endpoint, method = 'GET', body = null) {
-    const API_ADMIN_URL = `http://${window.location.hostname}:3000`;
+    const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+    const API_ADMIN_URL = isDev ? `http://${window.location.hostname}:3000` : '';
     const token = localStorage.getItem('adminToken');
 
     // Não redireciona se já estiver numa página de autenticação
@@ -142,4 +142,25 @@ function getContrastColor(hexcolor) {
     
     // Retorna escuro (#1a202c) para fundos claros, e claro (#edf2f7) para fundos escuros
     return (yiq >= 128) ? '#1a202c' : '#edf2f7';
+}
+
+/**
+ * [NOVO] Escapa strings para prevenir XSS ao injetar em HTML (innerHTML).
+ */
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
+ * [NOVO] Escapa strings para prevenir XSS ao injetar em Atributos (ex: id="...").
+ */
+function escapeAttr(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe).replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }

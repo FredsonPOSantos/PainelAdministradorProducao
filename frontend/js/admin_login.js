@@ -7,8 +7,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminLoginForm = document.getElementById('adminLoginForm');
     const forgotPasswordLink = document.getElementById('forgotPasswordLink');
     
-    // API URL (deve ser o mesmo IP/domínio do frontend, mas na porta 3000)
-    const API_BASE_URL = `http://${window.location.hostname}:3000`;
+    // Define dinamicamente a URL base (dev vs prod)
+    const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+    const API_BASE_URL = isDev ? `http://${window.location.hostname}:3000` : '';
+
+    // --- Lógica do Banner de Atualização ---
+    const updateBanner = document.getElementById('updateBanner');
+    const closeBannerBtn = document.getElementById('closeUpdateBanner');
+    const updateKey = 'dismissed_update_14_7_0_v4'; // Chave atualizada para exibir o banner com data e hora corrigidas
+    
+    if (updateBanner && !localStorage.getItem(updateKey)) {
+        updateBanner.classList.remove('hidden');
+    }
+
+    if (closeBannerBtn) {
+        closeBannerBtn.addEventListener('click', () => {
+            updateBanner.classList.add('hidden');
+            localStorage.setItem(updateKey, 'true'); // Grava que o utilizador já viu
+        });
+    }
 
     // --- Lógica de Login ---
     if (adminLoginForm) {
@@ -72,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loginLogo = document.getElementById('loginLogo');
         if (loginLogo && settings.login_logo_url) {
-            loginLogo.src = `http://${window.location.hostname}:3000${settings.login_logo_url}`;
+            loginLogo.src = `${API_BASE_URL}${settings.login_logo_url}`;
             loginLogo.style.display = 'block';
         }
 
@@ -85,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Prioriza a imagem de fundo sobre a cor de fundo
         if (showcasePanel && settings.background_image_url) {
-            showcasePanel.style.backgroundImage = `url('http://${window.location.hostname}:3000${settings.background_image_url}')`;
+            showcasePanel.style.backgroundImage = `url('${API_BASE_URL}${settings.background_image_url}')`;
         } else if (settings.login_background_color) {
             // Se não houver imagem, aplica a cor de fundo ao painel esquerdo
             if (showcasePanel) showcasePanel.style.backgroundColor = settings.login_background_color;

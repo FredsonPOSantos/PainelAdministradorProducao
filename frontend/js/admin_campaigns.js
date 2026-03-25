@@ -2,7 +2,6 @@ if (window.initCampaignsPage) {
     console.warn("Tentativa de carregar admin_campaigns.js múltiplas vezes. A segunda execução foi ignorada.");
 } else {
     window.initCampaignsPage = () => {
-        console.log("A inicializar a página de gestão de Campanhas...");
 
         // --- ELEMENTOS DO DOM ---
         const addCampaignBtn = document.getElementById('addCampaignBtn');
@@ -120,9 +119,9 @@ if (window.initCampaignsPage) {
                     // Ajustado para mostrar as novas colunas
                     row.innerHTML = `
                         <td>${campaign.id}</td>
-                        <td>${campaign.name}</td>
-                        <td>${campaign.template_name || 'N/A'}</td>
-                        <td>${campaign.target_type}</td>
+                        <td>${escapeHtml(campaign.name)}</td>
+                        <td>${escapeHtml(campaign.template_name || 'N/A')}</td>
+                        <td>${escapeHtml(campaign.target_type)}</td>
                         <td>${statusBadge}</td>
                         <td class="action-buttons">
                             <button class="btn-preview" title="Pré-visualizar Campanha">

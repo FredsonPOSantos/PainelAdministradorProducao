@@ -16,11 +16,9 @@ const getUnreadCount = async (req, res) => {
         res.json({ success: true, data: { count } });
     } catch (error) {
         console.error('Erro ao buscar contagem de notificações não lidas:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro de banco de dados ao buscar contagem de notificações.',
-            db_error: error.message, // Passa a mensagem de erro real do DB
-            db_code: error.code      // Passa o código de erro real do DB
+        res.status(500).json({
+            success: false,
+            message: 'Erro de banco de dados ao buscar contagem de notificações.'
         });
     }
 };
@@ -37,11 +35,9 @@ const getUnreadNotifications = async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error('Erro ao buscar notificações não lidas:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro de banco de dados ao buscar notificações.',
-            db_error: error.message,
-            db_code: error.code
+        res.status(500).json({
+            success: false,
+            message: 'Erro de banco de dados ao buscar notificações.'
         });
     }
 };
@@ -61,9 +57,7 @@ const markAsRead = async (req, res) => {
         console.error('Erro ao marcar notificação como lida:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro de banco de dados ao marcar notificação como lida.',
-            db_error: error.message,
-            db_code: error.code
+            message: 'Erro de banco de dados ao marcar notificação como lida.'
         });
     }
 };
@@ -80,11 +74,9 @@ const markAllAsRead = async (req, res) => {
         res.json({ success: true, message: 'Notificações marcadas como lidas.' });
     } catch (error) {
         console.error('Erro ao marcar notificações como lidas:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro de banco de dados ao marcar notificações como lidas.',
-            db_error: error.message,
-            db_code: error.code
+        res.status(500).json({
+            success: false,
+            message: 'Erro de banco de dados ao marcar notificações como lidas.'
         });
     }
 };

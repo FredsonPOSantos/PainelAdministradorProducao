@@ -8,6 +8,15 @@ const verifyToken = require('../middlewares/authMiddleware');
 const { checkPermission } = require('../middlewares/permissionMiddleware');
 const ticketAttachmentUploadMiddleware = require('../middlewares/ticketAttachmentUploadMiddleware');
 
+const uploadTicketAttachment = (req, res, next) => {
+    ticketAttachmentUploadMiddleware.single('file')(req, res, (err) => {
+        if (!err) return next();
+        const message = err.message || 'Erro ao enviar anexo.';
+        const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+        return res.status(status).json({ success: false, message });
+    });
+};
+
 // Todas as rotas de tickets requerem autenticação
 router.use(verifyToken);
 
@@ -33,6 +42,6 @@ router.put('/:id/status', checkPermission('tickets.manage'), ticketController.up
 router.post('/:id/rate', ticketController.addTicketRating); // Não precisa de permissão especial
 
 // Upload de anexo
-router.post('/attachments', ticketAttachmentUploadMiddleware.single('file'), ticketController.uploadAttachment); // Não precisa de permissão especial
+router.post('/attachments', uploadTicketAttachment, ticketController.uploadAttachment); // Não precisa de permissão especial
 
 module.exports = router;

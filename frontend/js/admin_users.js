@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("Tentativa de carregar admin_users.js múltiplas vezes.");
     } else {
         window.initUsersPage = () => {
-            console.log("A inicializar a página de gestão de utilizadores (V3 - com nome completo)...");
 
             const currentUserRole = window.currentUserProfile ? window.currentUserProfile.role : null;
             const currentUserId = window.currentUserProfile ? window.currentUserProfile.id : null;
@@ -74,15 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         const row = document.createElement('tr');
                         let cells = `
                             <td>${user.id}</td>
-                            <td>${user.nome_completo || 'N/A'}</td>
-                            <td>${user.email}</td>
-                            <td><span class="badge role-${user.role}">${user.role}</span></td>
+                            <td>${escapeHtml(user.nome_completo || 'N/A')}</td>
+                            <td>${escapeHtml(user.email)}</td>
+                            <td><span class="badge role-${escapeAttr(user.role)}">${escapeHtml(user.role)}</span></td>
                         `;
                         if (showSensitiveData) {
                             cells += `
-                                <td>${user.setor || 'N/A'}</td>
-                                <td>${user.matricula || 'N/A'}</td>
-                                <td>${user.cpf || 'N/A'}</td>
+                                <td>${escapeHtml(user.setor || 'N/A')}</td>
+                                <td>${escapeHtml(user.matricula || 'N/A')}</td>
+                                <td>${escapeHtml(user.cpf || 'N/A')}</td>
                             `;
                         }
                         cells += `
@@ -114,13 +113,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         buttons += `<button class="btn-delete" data-user-id="${userId}" title="Eliminar Utilizador"><i class="fas fa-trash-alt"></i></button>`;
                         // [NOVO] Botão de Permissões Individuais
                         buttons += `<button class="btn-secondary btn-permissions" data-user-id="${userId}" title="Permissões Individuais"><i class="fas fa-shield-alt"></i></button>`;
-                        buttons += `<button class="btn-secondary" data-user-id="${userId}" data-user-email="${user.email}" title="Resetar Senha"><i class="fas fa-key"></i></button>`;
+                        buttons += `<button class="btn-secondary" data-user-id="${userId}" data-user-email="${escapeAttr(user.email)}" title="Resetar Senha"><i class="fas fa-key"></i></button>`;
                     }
                 } else if (currentUserRole === 'gestao') {
                     if (!isMasterUser) {
                         buttons += `<button class="btn-edit" data-user-id="${userId}" title="Editar Utilizador"><i class="fas fa-pencil-alt"></i></button>`;
                         if (!isSelf) {
-                           buttons += `<button class="btn-secondary" data-user-id="${userId}" data-user-email="${user.email}" title="Resetar Senha"><i class="fas fa-key"></i></button>`;
+                           buttons += `<button class="btn-secondary" data-user-id="${userId}" data-user-email="${escapeAttr(user.email)}" title="Resetar Senha"><i class="fas fa-key"></i></button>`;
                         }
                     }
                 }
@@ -323,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     for (const feature in groups) {
                         const groupDiv = document.createElement('div');
                         groupDiv.className = 'permission-group';
-                        groupDiv.innerHTML = `<h4>${feature}</h4>`;
+                        groupDiv.innerHTML = `<h4>${escapeHtml(feature)}</h4>`;
 
                         groups[feature].forEach(perm => {
                             const roleHasPerm = matrix.assignments[userRole]?.[perm.permission_key] === true;
@@ -335,8 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             const itemDiv = document.createElement('div');
                             itemDiv.className = 'permission-item';
                             itemDiv.innerHTML = `
-                                <input type="checkbox" id="uperm-${perm.permission_key}" data-key="${perm.permission_key}" ${isChecked ? 'checked' : ''}>
-                                <label for="uperm-${perm.permission_key}">${perm.action_name} ${roleHasPerm ? '<span style="font-size:10px; color:#718096;">(Padrão: Sim)</span>' : ''}</label>
+                                <input type="checkbox" id="uperm-${escapeAttr(perm.permission_key)}" data-key="${escapeAttr(perm.permission_key)}" ${isChecked ? 'checked' : ''}>
+                                <label for="uperm-${escapeAttr(perm.permission_key)}">${escapeHtml(perm.action_name)} ${roleHasPerm ? '<span style="font-size:10px; color:#718096;">(Padrão: Sim)</span>' : ''}</label>
                             `;
                             groupDiv.appendChild(itemDiv);
                         });

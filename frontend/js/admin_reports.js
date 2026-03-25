@@ -144,7 +144,9 @@ if (window.initReportsPage) {
                         handler: async (row) => {
                             try {
                                 const token = localStorage.getItem('adminToken');
-                                const response = await fetch(`http://${window.location.hostname}:3000/api/logs/archives/${row.name}`, {
+                            const isDev = window.location.port === '8184' || window.location.hostname === 'localhost';
+                            const baseUrl = isDev ? `http://${window.location.hostname}:3000` : '';
+                            const response = await fetch(`${baseUrl}/api/logs/archives/${row.name}`, {
                                     headers: { 'Authorization': `Bearer ${token}` }
                                 });
                                 if (!response.ok) throw new Error('Erro ao baixar arquivo');
